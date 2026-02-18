@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Terminal, Columns, Rows, Maximize2, X, Send, Loader2, CheckCircle, History, Wifi, WifiOff, Menu, RefreshCw, Mic, MicOff, Sparkles, Check } from 'lucide-react';
+import { Terminal, Columns, Rows, Maximize2, X, Send, Loader2, CheckCircle, History, Wifi, WifiOff, Menu, RefreshCw, Mic, MicOff, Sparkles, Check, Plus } from 'lucide-react';
 import yaml from 'js-yaml';
 import { TtydFrame } from './components/TtydFrame';
 import { LoginForm } from './components/LoginForm';
@@ -32,6 +32,11 @@ const WebTerminalApp: React.FC = () => {
   
   // Ttyd configs for panes (pane_target -> {port, token})
   const [ttydConfigs, setTtydConfigs] = useState<Record<string, {port: number, token: string}>>({});
+  
+  // Create window dialog state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newWindowName, setNewWindowName] = useState('');
+  const [isCreatingWindow, setIsCreatingWindow] = useState(false);
   
   // Command state
   const [commandText, setCommandText] = useState('');
@@ -204,6 +209,42 @@ const WebTerminalApp: React.FC = () => {
     setSelectedPane(pane);
     // Pre-fetch ttyd config
     await getTtydConfig(pane.target);
+  };
+
+  // Create new tmux window
+  const handleCreateWindow = async () => {
+    if (!newWindowName.trim() || !token) return;
+    
+    setIsCreatingWindow(true);
+    try {
+      const res = await fetch('/api/tmux/create', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          win_name: newWindowName.trim(),
+          session_name: 'worker',
+          dev: false
+        })
+      });
+      
+      if (res.ok) {
+        setNewWindowName('');
+        setShowCreateDialog(false);
+        // Refresh panes list
+        await loadTmuxPanes();
+      } else {
+        const error = await res.text();
+        alert('Failed to create window: ' + error);
+      }
+    } catch (error) {
+      console.error('Failed to create window:', error);
+      alert('Failed to create window');
+    } finally {
+      setIsCreatingWindow(false);
+    }
   };
 
   // Save command history
@@ -476,9 +517,14 @@ const WebTerminalApp: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Panes ({tmuxPanes.length})</div>
-            <button onClick={loadTmuxPanes} disabled={isLoadingPanes} className="p-1 rounded text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50">
-              <RefreshCw size={14} className={isLoadingPanes ? 'animate-spin' : ''}/>
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setShowCreateDialog(true)} className="p-1 rounded text-green-400 hover:bg-gray-800 hover:text-green-300" title="Create new window">
+                <Plus size={16} />
+              </button>
+              <button onClick={loadTmuxPanes} disabled={isLoadingPanes} className="p-1 rounded text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50">
+                <RefreshCw size={14} className={isLoadingPanes ? 'animate-spin' : ''}/>
+              </button>
+            </div>
           </div>
           {groupPanesBySession(tmuxPanes).map((session, idx) => (
             <div key={idx} className="mb-4">
@@ -533,6 +579,40 @@ const WebTerminalApp: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* Create Window Dialog */}
+        {showCreateDialog && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-80 shadow-2xl">
+              <h3 className="text-lg font-semibold text-white mb-4">Create New Window</h3>
+              <input
+                type="text"
+                value={newWindowName}
+                onChange={(e) => setNewWindowName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateWindow()}
+                placeholder="Window name..."
+                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white mb-4 focus:outline-none focus:border-blue-500"
+                autoFocus
+              />
+              <div className="text-xs text-gray-400 mb-4">Session: worker</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCreateDialog(false)}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateWindow}
+                  disabled={!newWindowName.trim() || isCreatingWindow}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors disabled:opacity-50"
+                >
+                  {isCreatingWindow ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Fixed Bottom Prompt Area - Claude Style */}
         {!showVoiceButton && (
