@@ -271,7 +271,7 @@ export const WebTerminalApp: React.FC = () => {
   return (
     <div className="relative w-screen h-screen bg-black overflow-hidden font-sans flex">
       {/* Icon sidebar - 64px */}
-      <div className="w-16 h-full bg-gray-900 border-r border-gray-800 flex flex-col justify-between py-4 z-30">
+      <div className="w-16 h-full bg-gray-900 border-r border-gray-800 flex flex-col justify-between py-4 z-[40]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
             <Terminal size={20} className="text-white" />
@@ -352,7 +352,7 @@ export const WebTerminalApp: React.FC = () => {
       </div>
 
       {showCreateDialog && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
           <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-80 shadow-2xl">
             <h3 className="text-lg font-semibold text-white mb-4">Create New Window</h3>
             <input id="create-dialog-input" type="text" placeholder="Window name (e.g. my_terminal)" className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white mb-3 focus:outline-none focus:border-blue-500" />
@@ -367,7 +367,7 @@ export const WebTerminalApp: React.FC = () => {
       )}
 
       {editingPane && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
           <div className="bg-gray-900 border border-gray-700 rounded-lg w-[520px] max-h-[85vh] overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700 bg-gray-800/50">
               <h3 className="text-lg font-semibold text-white">Edit Pane</h3>
