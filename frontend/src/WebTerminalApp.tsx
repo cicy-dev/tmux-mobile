@@ -29,7 +29,6 @@ export const WebTerminalApp: React.FC = () => {
   // Command state - use refs for direct DOM access
   const commandTextRef = useRef('');
   const [isSending, setIsSending] = useState(false);
-  const [isInteracting, setIsInteracting] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
@@ -329,7 +328,7 @@ export const WebTerminalApp: React.FC = () => {
           const config = ttydConfigs[pane.target];
           return (
             <div key={pane.target} style={{ display: selectedPane?.target === pane.target ? 'block' : 'none' }} className="absolute inset-0">
-              {config ? <TtydFrame url={getTtydWebUrl(pane.target, config.token)} isInteractingWithOverlay={isInteracting || settings.showPrompt || settings.showVoiceControl} /> : <div className="flex items-center justify-center h-full text-gray-500"><Loader2 className="animate-spin" size={32} /></div>}
+              {config ? <TtydFrame url={getTtydWebUrl(pane.target, config.token)} isInteractingWithOverlay={false} /> : <div className="flex items-center justify-center h-full text-gray-500"><Loader2 className="animate-spin" size={32} /></div>}
             </div>
           );
         })}
