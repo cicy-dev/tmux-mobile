@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache docker-cli
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY tsconfig.json ./
+COPY src ./src
+
+EXPOSE 6901
+
+CMD ["npx", "tsx", "watch", "src/index.ts"]

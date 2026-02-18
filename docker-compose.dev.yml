@@ -1,0 +1,38 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./server/src:/app/src:ro
+      - ./server/package.json:/app/package.json:ro
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/personal:/root/personal:ro
+    environment:
+      - NODE_ENV=development
+      - PORT=6901
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "6901:6901"
+    command: npx tsx watch src/index.ts
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "16901:16901"
+    depends_on:
+      - server
+    command: npx vite --host 0.0.0.0 --port 16901
+    restart: unless-stopped
