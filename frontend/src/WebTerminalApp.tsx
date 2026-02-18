@@ -29,6 +29,7 @@ export const WebTerminalApp: React.FC = () => {
   // Command state - use refs for direct DOM access
   const commandTextRef = useRef('');
   const [isSending, setIsSending] = useState(false);
+  const [isInteracting, setIsInteracting] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
