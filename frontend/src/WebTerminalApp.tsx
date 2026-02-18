@@ -4,7 +4,7 @@ import { TtydFrame } from './components/TtydFrame';
 import { LoginForm } from './components/LoginForm';
 import { VoiceFloatingButton } from './components/VoiceFloatingButton';
 import { sendCommandToTmux } from './services/mockApi';
-import { getApiUrl, getTtydUrl } from './services/apiUrl';
+import { getApiUrl, getTtydUrl, getTtydWebUrl } from './services/apiUrl';
 
 interface TmuxPane {
   session: string;
@@ -328,7 +328,7 @@ export const WebTerminalApp: React.FC = () => {
           const config = ttydConfigs[pane.target];
           return (
             <div key={pane.target} style={{ display: selectedPane?.target === pane.target ? 'block' : 'none' }} className="absolute inset-0">
-              {config ? <TtydFrame paneId={config.name} port={config.port} token={config.token} token2={token || ''} isInteractingWithOverlay={false} /> : <div className="flex items-center justify-center h-full text-gray-500"><Loader2 className="animate-spin" size={32} /></div>}
+              {config ? <TtydFrame url={getTtydWebUrl(pane.target, config.token)} isInteractingWithOverlay={isInteracting || settings.showPrompt || settings.showVoiceControl} /> : <div className="flex items-center justify-center h-full text-gray-500"><Loader2 className="animate-spin" size={32} /></div>}
             </div>
           );
         })}
