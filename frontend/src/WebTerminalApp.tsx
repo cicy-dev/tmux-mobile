@@ -202,7 +202,7 @@ export const WebTerminalApp: React.FC = () => {
       {/* Icon sidebar - 64px */}
       <div className="w-16 h-full bg-gray-900 border-r border-gray-800 flex flex-col justify-between py-4 z-30">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
             <Terminal size={20} className="text-white" />
           </div>
           <button onClick={() => setShowPaneList(!showPaneList)} className={`p-2 rounded ${showPaneList ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`} title="Sessions">
@@ -222,8 +222,8 @@ export const WebTerminalApp: React.FC = () => {
         </div>
       </div>
 
-      {/* Session/Pane list sidebar - 320px */}
-      <div className={`h-full bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 transition-all duration-300 ${showPaneList ? 'w-80' : 'w-0 overflow-hidden'}`}>
+      {/* Session/Pane list sidebar - 240px */}
+      <div className={`h-full bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 transition-all duration-300 ${showPaneList ? 'w-60' : 'w-0 overflow-hidden'}`}>
         <div className="h-14 border-b border-gray-800 flex items-center justify-between px-4 flex-shrink-0">
           <div className="text-white font-semibold">Sessions</div>
           <div className="flex items-center gap-2 text-sm">
@@ -242,8 +242,8 @@ export const WebTerminalApp: React.FC = () => {
                   <button onClick={() => { setSelectedPane(pane); getTtydConfig(pane.target); }} className={`flex-1 text-left px-3 py-2 rounded text-sm truncate ${selectedPane?.target === pane.target ? 'text-white' : 'text-gray-300'}`}>
                     {title}
                   </button>
-                  <button onClick={() => handleUpdateTitle(pane.target, title)} className={`p-1 rounded ${selectedPane?.target === pane.target ? 'text-white hover:bg-blue-700' : 'text-gray-500 hover:bg-gray-700'}`} title="Edit title">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                  <button onClick={() => handleUpdateTitle(pane.target, title)} className={`p-2 rounded ${selectedPane?.target === pane.target ? 'text-white hover:bg-blue-700' : 'text-gray-500 hover:bg-gray-700'}`} title="Edit title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                   </button>
                 </div>
               );
@@ -253,7 +253,7 @@ export const WebTerminalApp: React.FC = () => {
       </div>
 
       {/* Main area - ttyd iframe */}
-      <div className="absolute top-0 bottom-0 right-0 bg-black" style={{ left: showPaneList ? '384px' : '64px' }}>
+      <div className="absolute top-0 right-0 bg-black" style={{ left: showPaneList ? '304px' : '64px', bottom: '60px' }}>
         {tmuxPanes.map(pane => {
           const config = ttydConfigs[pane.target];
           return (
@@ -274,7 +274,7 @@ export const WebTerminalApp: React.FC = () => {
       </div>
 
       {/* Command input */}
-      <div className="absolute bottom-4 z-10" style={{ left: showPaneList ? '404px' : '84px', right: '16px' }}>
+      <div className="absolute bottom-4 z-10" style={{ left: showPaneList ? '324px' : '84px', right: '16px' }}>
         <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2">
           <input id="command-input" type="text" placeholder="Send command..." className="flex-1 bg-transparent text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleSendCommand()} />
           <button onClick={handleSendCommand} disabled={isSending} className="p-1 text-blue-400 hover:text-blue-300"><Send size={18} /></button>
