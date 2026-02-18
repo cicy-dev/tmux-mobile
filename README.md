@@ -1,44 +1,197 @@
-# Fullstack TypeScript + Vite + Docker
+# ttyd-proxy-v1
 
-Full-stack boilerplate with separate dev/prod Docker Compose configs.
+TypeScript fullstack project with Docker development environment and hot reload support.
 
 ## Quick Start
 
-### Development (Hot Reload)
+### Development (Hot Reload Enabled)
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
-- API proxy: Vite forwards `/api/*` to backend
 
-### Production (Optimized & Secure)
+**Access:**
+- Frontend: http://localhost:16901
+- Server API: http://localhost:6901
+- API proxy: Vite forwards `/api/*` and `/ttyd/*` to server
+
+### Production
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d
 ```
+
+**Access:**
 - Frontend: http://localhost (Nginx)
-- Backend: http://localhost:3000
+- Server: http://localhost:6901
+
+## Development Workflow & Hot Reload
+
+### Hot Reload Architecture
+
+This project supports **instant code updates without restarting Docker containers**.
+
+#### Server (TypeScript + tsx watch)
+- **Technology**: `tsx watch` monitors file changes
+- **Hot Reload Files**:
+  - `server/src/**/*.ts` - TypeScript source files
+  - `server/package.json` - Version info (via `getVersion()`)
+- **How it works**:
+  - Volume mount: `./server/src:/app/src:ro`
+  - Volume mount: `./server/package.json:/app/package.json:ro`
+  - tsx watch detects changes and restarts the server automatically
+- **Example**:
+  ```bash
+  # Edit server code
+  vim server/src/index.ts
+  # Server automatically restarts - check logs
+  docker compose -f docker-compose.dev.yml logs -f server
+  ```
+
+#### Frontend (Vite + HMR)
+- **Technology**: Vite Hot Module Replacement (HMR)
+- **Hot Reload Files**:
+  - `frontend/src/**/*.ts` - TypeScript source
+  - `frontend/src/**/*.css` - Styles
+  - `frontend/index.html` - HTML template
+  - `frontend/vite.config.ts` - Vite config
+- **How it works**:
+  - Volume mount: `./frontend/src:/app/src:ro`
+  - Vite HMR updates browser instantly without full page reload
+- **Example**:
+  ```bash
+  # Edit frontend code
+  vim frontend/src/main.ts
+  # Browser auto-updates (if open) or refresh to see changes
+  ```
+
+### Development Flow Example
+
+```bash
+# 1. Start development environment
+docker compose -f docker-compose.dev.yml up -d
+
+# 2. Check services are running
+docker compose -f docker-compose.dev.yml ps
+
+# 3. View logs (optional)
+docker compose -f docker-compose.dev.yml logs -f
+
+# 4. Make code changes (hot reload triggers automatically)
+#    - Edit server/src/index.ts → Server restarts
+#    - Edit frontend/src/main.ts → Browser updates
+
+# 5. Test changes
+curl http://localhost:6901/api/health
+# Or open http://localhost:16901 in browser
+
+# 6. Version bump example
+vim server/package.json  # Change "version": "1.0.4"
+curl http://localhost:6901/api/health  # New version appears
+
+# 7. Stop when done
+docker compose -f docker-compose.dev.yml down
+```
+
+### When Hot Reload Requires Container Restart
+
+Hot reload works for code changes. You need to restart containers when:
+- Adding new npm packages (`package.json` dependencies changed)
+- Changing Dockerfile
+- Changing docker-compose.yml ports or volumes
+- Adding new environment variables
+
+```bash
+# Rebuild after dependency changes
+docker compose -f docker-compose.dev.yml up -d --build
+```
 
 ## Architecture
 
 | Feature | Development | Production |
 |---------|-------------|------------|
-| Backend | `tsx watch` live reload | Pre-compiled JS, `node:20-alpine` |
-| Frontend | Vite dev server | Nginx serving static files |
-| Mount | Bind mount source code | Immutable images only |
-| Security | Root in container | Non-root user, read-only fs |
+| Server | `tsx watch` live reload | Pre-compiled JS |
+| Frontend | Vite dev server + HMR | Nginx static files |
+| Mount | Bind mount source code | Immutable images |
+| Ports | 16901 (frontend), 6901 (server) | 80 (frontend), 6901 (server) |
 
 ## Project Structure
+
 ```
 .
-├── backend/
-│   ├── src/index.ts      # Raw HTTP server
-│   ├── Dockerfile        # Multi-stage build
-│   └── Dockerfile.dev    # Dev with tsx
+├── server/
+│   ├── src/
+│   │   └── index.ts        # Main server code
+│   ├── package.json        # Dependencies & version
+│   ├── tsconfig.json       # TypeScript config
+│   ├── Dockerfile          # Production build
+│   └── Dockerfile.dev      # Development with tsx watch
 ├── frontend/
-│   ├── src/main.ts       # Vite app
-│   ├── Dockerfile        # Build + Nginx
-│   └── Dockerfile.dev    # Dev server
-├── docker-compose.dev.yml
-└── docker-compose.prod.yml
+│   ├── src/
+│   │   └── main.ts         # Vite app entry
+│   ├── index.html          # HTML template
+│   ├── vite.config.ts      # Vite config with proxy
+│   ├── package.json        # Dependencies
+│   ├── Dockerfile          # Production build
+│   └── Dockerfile.dev      # Development server
+├── docker-compose.dev.yml  # Development config
+├── docker-compose.prod.yml # Production config
+├── .gitignore
+└── README.md
 ```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check with version info |
+| `/api/bots` | GET | List bots (requires auth) |
+| `/api/tmux` | POST | Send tmux command (requires auth) |
+| `/api/tmux-list` | GET | List tmux sessions (requires auth) |
+| `/api/correctEnglish` | POST | English text correction (requires auth) |
+| `/ttyd/:name` | WS | WebSocket proxy to ttyd |
+
+## Environment Variables
+
+### Server
+- `PORT` - Server port (default: 6901)
+- `NODE_ENV` - Environment (development/production)
+
+### Frontend
+- `NODE_ENV` - Environment (development/production)
+
+## Docker Volumes (Development)
+
+| Host Path | Container Path | Purpose |
+|-----------|----------------|---------|
+| `./server/src` | `/app/src` | Server source (hot reload) |
+| `./server/package.json` | `/app/package.json` | Version info (hot reload) |
+| `./frontend/src` | `/app/src` | Frontend source (HMR) |
+| `./frontend/index.html` | `/app/index.html` | HTML template (HMR) |
+| `./frontend/vite.config.ts` | `/app/vite.config.ts` | Vite config (HMR) |
+| `/var/run/docker.sock` | `/var/run/docker.sock` | Docker access for server |
+| `~/personal` | `/root/personal` | Config files (read-only) |
+
+## Troubleshooting
+
+### Hot reload not working
+```bash
+# Check tsx watch is running
+docker compose -f docker-compose.dev.yml logs server | grep tsx
+
+# Check file mounts
+docker compose -f docker-compose.dev.yml config
+```
+
+### Port already in use
+```bash
+# Find process using port
+lsof -i :6901
+lsof -i :16901
+
+# Remove orphan containers
+docker compose -f docker-compose.dev.yml down --remove-orphans
+```
+
+### 502 Bad Gateway
+- Check server is running: `docker compose -f docker-compose.dev.yml ps`
+- Check server logs: `docker compose -f docker-compose.dev.yml logs server`
+- Verify port configuration matches between docker-compose and vite.config.ts
