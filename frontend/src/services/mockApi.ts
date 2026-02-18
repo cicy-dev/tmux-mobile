@@ -5,13 +5,13 @@ const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization'
 
 // 发送命令到 tmux
 export const sendCommandToTmux = async (command: string, tmuxTarget: string): Promise<{ success: boolean; message: string }> => {
-  const res = await fetch('/api/tmux', {
+  const res = await fetch('/api/tmux/send', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ text: command, target: tmuxTarget }),
+    body: JSON.stringify({ win_id: tmuxTarget, text: command }),
   });
   const data = await res.json();
-  return { success: data.success, message: data.success ? 'Sent to tmux' : data.error };
+  return { success: data.success, message: data.success ? 'Sent to tmux' : data.detail };
 };
 
 // 转发键盘事件

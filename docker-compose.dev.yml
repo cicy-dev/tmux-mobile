@@ -17,6 +17,7 @@ services:
       - "6901:6901"
     command: npx tsx watch src/index.ts
     restart: unless-stopped
+    network_mode: host
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -30,10 +31,13 @@ services:
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
       - ./frontend/tailwind.config.js:/app/tailwind.config.js:ro
       - ./frontend/postcss.config.js:/app/postcss.config.js:ro
+      - ./frontend/.env:/app/.env:ro
       - /app/node_modules
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=https://g-fast-api.cicy.de5.net
+      - VITE_TTYD_URL=https://g-ttyd-api.cicy.de5.net
     ports:
       - "16901:16901"
     depends_on:

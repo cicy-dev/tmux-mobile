@@ -9,26 +9,5 @@ export default defineConfig({
     port: 16901,
     strictPort: true,
     allowedHosts: true,
-    hmr: {
-      clientPort: 16901,
-    },
-    watch: {
-      usePolling: true,
-    },
-    proxy: {
-      '/api/tmux': {
-        target: 'http://host.docker.internal:14444',
-        changeOrigin: true,
-      },
-      '/api': {
-        target: 'http://server:6901',
-        changeOrigin: true,
-      },
-      '/ttyd': {
-        target: 'http://server:6901',
-        changeOrigin: true,
-        ws: true,
-      },
-    },
   },
 });

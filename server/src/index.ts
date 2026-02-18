@@ -13,6 +13,15 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+
+function addCorsHeaders(res: http.ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+}
+
 function getVersion(): string {
   try {
     const pkg = JSON.parse(fs.readFileSync(join(__dirname, '../package.json'), 'utf-8'));
@@ -179,6 +188,15 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
 const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
   const urlPath = new URL(req.url || '/', 'http://localhost').pathname;
 
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    addCorsHeaders(res);
+    res.writeHead(204);
+    return res.end();
+  }
+
+  addCorsHeaders(res);
+
   if (urlPath === '/api/health' && req.method === 'GET') {
     return json(res, {
       success: true,
@@ -197,25 +215,48 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
     if (m) {
       const nameOrPort = m[1];
       let port: string;
-      let bot: Bot | undefined;
+      let token: string;
 
+      // Check if it's a port number or a name
       if (/^\d+$/.test(nameOrPort)) {
+        // It's a port number - get token from bots
         port = nameOrPort;
-        bot = loadBots().find((b) => String(b.ttyd_port) === port);
+        const bot = loadBots().find((b) => String(b.ttyd_port) === port);
+        token = bot?.ttyd_token || '';
       } else {
-        bot = getBotByName(nameOrPort);
-        if (!bot || !bot.ttyd_port) {
-          res.writeHead(404);
-          return res.end('bot not found');
+        // It's a name - query fast-api for port and token
+        try {
+          const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(nameOrPort)}`;
+          const response = await fetch(fastApiUrl, {
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+          });
+          if (!response.ok) {
+            res.writeHead(404);
+            return res.end('pane not found');
+          }
+          const data = await response.json() as { port: number; token: string };
+          port = String(data.port);
+          token = data.token || '';
+        } catch (e) {
+          res.writeHead(502);
+          return res.end('fast-api error');
         }
-        port = String(bot.ttyd_port);
       }
 
       req.url = m[2] || '/';
       delete req.headers['authorization'];
 
-      if (bot && bot.ttyd_token) {
-        const auth = 'Basic ' + Buffer.from('bot:' + bot.ttyd_token).toString('base64');
+      // Check for token in query param first
+      const url = new URL(req.url || '/', 'http://localhost');
+      const queryToken = url.searchParams.get('token');
+      
+      if (queryToken) {
+        // Use token from query param as Basic auth
+        const auth = 'Basic ' + Buffer.from('user:' + queryToken).toString('base64');
+        req.headers['authorization'] = auth;
+      } else if (token) {
+        // Use token from fast-api
+        const auth = 'Basic ' + Buffer.from('user:' + token).toString('base64');
         req.headers['authorization'] = auth;
       }
 
@@ -330,28 +371,46 @@ server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex
   const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
   if (m) {
     const nameOrPort = m[1];
-    let port: string | undefined;
-    let bot: Bot | undefined;
+    let port: string;
+    let token: string;
 
+    // Check if it's a port number or a name
     if (/^\d+$/.test(nameOrPort)) {
       port = nameOrPort;
-      bot = loadBots().find((b) => String(b.ttyd_port) === port);
+      const bot = loadBots().find((b) => String(b.ttyd_port) === port);
+      token = bot?.ttyd_token || '';
     } else {
-      bot = getBotByName(nameOrPort);
-      port = bot && String(bot.ttyd_port);
+      // It's a name - query fast-api for port and token
+      const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(nameOrPort)}`;
+      fetch(fastApiUrl, {
+        headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+      }).then((response) => {
+        if (!response.ok) {
+          socket.destroy();
+          return;
+        }
+        response.json().then((data: { port: number; token: string }) => {
+          const wsPort = String(data.port);
+          const wsToken = data.token || '';
+
+          req.url = m[2] || '/';
+          delete req.headers['authorization'];
+
+          const wsUrl = new URL(req.url || '/', 'http://localhost');
+          const wsQueryToken = wsUrl.searchParams.get('token');
+
+          if (wsQueryToken) {
+            const auth = 'Basic ' + Buffer.from('user:' + wsQueryToken).toString('base64');
+            req.headers['authorization'] = auth;
+          } else if (wsToken) {
+            const auth = 'Basic ' + Buffer.from('user:' + wsToken).toString('base64');
+            req.headers['authorization'] = auth;
+          }
+
+          proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + wsPort });
+        }).catch(() => socket.destroy());
+      }).catch(() => socket.destroy());
     }
-
-    if (!port) return socket.destroy();
-
-    req.url = m[2] || '/';
-    delete req.headers['authorization'];
-
-    if (bot && bot.ttyd_token) {
-      const auth = 'Basic ' + Buffer.from('bot:' + bot.ttyd_token).toString('base64');
-      req.headers['authorization'] = auth;
-    }
-
-    proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + port });
   } else {
     socket.destroy();
   }
