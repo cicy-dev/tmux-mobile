@@ -323,7 +323,7 @@ export const WebTerminalApp: React.FC = () => {
       </div>
 
       {/* Main area - ttyd iframe */}
-      <div className="absolute top-0 right-0 bg-black" style={{ left: showPaneList ? '304px' : '64px', bottom: '60px' }}>
+      <div className="absolute top-0 right-0 bg-black" style={{ left: showPaneList ? '304px' : '64px', bottom: 0 }}>
         {tmuxPanes.map(pane => {
           const config = ttydConfigs[pane.target];
           return (
@@ -341,14 +341,6 @@ export const WebTerminalApp: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Command input */}
-      <div className="absolute bottom-4 z-10" style={{ left: showPaneList ? '324px' : '84px', right: '16px' }}>
-        <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2">
-          <input id="command-input" type="text" placeholder="Send command..." className="flex-1 bg-transparent text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleSendCommand()} />
-          <button onClick={handleSendCommand} disabled={isSending} className="p-1 text-blue-400 hover:text-blue-300"><Send size={18} /></button>
-        </div>
       </div>
 
       {showCreateDialog && (
