@@ -241,15 +241,10 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
       // Check for token in query param first
       const url = new URL(req.url || '/', 'http://localhost');
       const queryToken = url.searchParams.get('token');
+      const useToken = queryToken || token;
       
-      if (queryToken) {
-        // Use token from query param as Basic auth
-        const auth = 'Basic ' + Buffer.from('user:' + queryToken).toString('base64');
-        req.headers['authorization'] = auth;
-      } else if (token) {
-        // Use token from fast-api
-        const auth = 'Basic ' + Buffer.from('user:' + token).toString('base64');
-        req.headers['authorization'] = auth;
+      if (useToken) {
+        req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + useToken).toString('base64');
       }
 
       return proxy.web(req, res, { target: 'http://127.0.0.1:' + port });
@@ -384,13 +379,10 @@ server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex
 
           const wsUrl = new URL(req.url || '/', 'http://localhost');
           const wsQueryToken = wsUrl.searchParams.get('token');
+          const useToken = wsQueryToken || wsToken;
 
-          if (wsQueryToken) {
-            const auth = 'Basic ' + Buffer.from('user:' + wsQueryToken).toString('base64');
-            req.headers['authorization'] = auth;
-          } else if (wsToken) {
-            const auth = 'Basic ' + Buffer.from('user:' + wsToken).toString('base64');
-            req.headers['authorization'] = auth;
+          if (useToken) {
+            req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + useToken).toString('base64');
           }
 
           proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + wsPort });
