@@ -369,14 +369,19 @@ export const WebTerminalApp: React.FC = () => {
               </button>
             </div>
             <div className="p-5 overflow-y-auto max-h-[calc(85vh-140px)]">
+              {/* Basic Info */}
               <div className="mb-5">
                 <h4 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">Basic Info</h4>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-400 text-xs mb-1">Pane ID</label>
                     <div className="text-white bg-gray-800/50 px-3 py-2 rounded text-sm font-mono">{editingPane.target}</div>
                   </div>
                   <div>
+                    <label className="block text-gray-400 text-xs mb-1">Title</label>
+                    <input type="text" value={editingPane.title} onChange={(e) => setEditingPane({...editingPane, title: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="Enter title..." />
+                  </div>
+                  <div className="col-span-2">
                     <label className="block text-gray-400 text-xs mb-1">TTYD URL</label>
                     {editingPane.url ? (
                       <a href={editingPane.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 bg-gray-800/50 px-3 py-2 rounded text-sm font-mono truncate block hover:underline">
@@ -386,28 +391,26 @@ export const WebTerminalApp: React.FC = () => {
                       <div className="text-gray-500 bg-gray-800/50 px-3 py-2 rounded text-sm font-mono">N/A</div>
                     )}
                   </div>
-                  <div>
-                    <label className="block text-gray-400 text-xs mb-1">Title</label>
-                    <input type="text" value={editingPane.title} onChange={(e) => setEditingPane({...editingPane, title: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="Enter title..." />
-                  </div>
                 </div>
               </div>
+              {/* Terminal */}
               <div className="mb-5">
                 <h4 className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-3">Terminal</h4>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-400 text-xs mb-1">Workspace</label>
                     <input type="text" value={editingPane.workspace || ''} onChange={(e) => setEditingPane({...editingPane, workspace: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="e.g. ~/workers/my_app" />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <label className="block text-gray-400 text-xs mb-1">Init Script</label>
-                    <textarea value={editingPane.init_script || ''} onChange={(e) => setEditingPane({...editingPane, init_script: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm resize-none" rows={4} placeholder="e.g. cd /app&#10;npm start" />
+                    <textarea value={editingPane.init_script || ''} onChange={(e) => setEditingPane({...editingPane, init_script: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm resize-none" rows={3} placeholder="e.g. cd /app&#10;npm start" />
                   </div>
                 </div>
               </div>
+              {/* Telegram */}
               <div className="mb-4">
                 <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-3">Telegram Notifications</h4>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-400 text-xs mb-1">Bot Token</label>
                     <input type="text" value={editingPane.tg_token || ''} onChange={(e) => setEditingPane({...editingPane, tg_token: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="123456:ABC-DEF..." />
@@ -416,7 +419,7 @@ export const WebTerminalApp: React.FC = () => {
                     <label className="block text-gray-400 text-xs mb-1">Chat ID</label>
                     <input type="text" value={editingPane.tg_chat_id || ''} onChange={(e) => setEditingPane({...editingPane, tg_chat_id: e.target.value})} className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="e.g. -1001234567890" />
                   </div>
-                  <div className="flex items-center gap-3 py-2">
+                  <div className="col-span-2 flex items-center gap-3 py-2">
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" checked={editingPane.tg_enable || false} onChange={(e) => setEditingPane({...editingPane, tg_enable: e.target.checked})} className="sr-only peer" />
                       <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
