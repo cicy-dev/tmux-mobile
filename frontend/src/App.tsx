@@ -584,7 +584,7 @@ const App: React.FC = () => {
                       });
                       if (res.ok) {
                         const data = await res.json();
-                        if (data.status === 'running' || data.status === 'started') {
+                        if (data.ready === true) {
                           setIframeKey(k => k + 1);
                           break;
                         }
