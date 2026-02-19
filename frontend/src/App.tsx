@@ -44,6 +44,8 @@ const App: React.FC = () => {
   const [paneTitle, setPaneTitle] = useState<string>('');
   const [paneWorkspace, setPaneWorkspace] = useState<string>('');
   const [readOnly, setReadOnly] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
   
   // UI State
   const [isInteracting, setIsInteracting] = useState(false);
@@ -563,22 +565,63 @@ const App: React.FC = () => {
         <div className="absolute top-0 left-0 right-0 h-8 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 flex items-center justify-between px-3 z-30">
           <span className="text-sm text-gray-300 truncate">{paneTitle}</span>
           {paneWorkspace && <span className="text-xs text-gray-500 ml-2 truncate">📁 {paneWorkspace}</span>}
-          <button
-            onClick={() => setReadOnly(!readOnly)}
-            className={`p-1 rounded transition-colors ${readOnly ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white'}`}
-            title={readOnly ? '只读模式 (点击取消)' : '点击进入只读模式'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                if (!confirm('Restart tmux and ttyd?')) return;
+                setIsRestarting(true);
+                try {
+                  await fetch(`${import.meta.env.VITE_API_URL}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}/restart`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                  });
+                  // Poll until ttyd is ready
+                  for (let i = 0; i < 30; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    try {
+                      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ttyd/status/${encodeURIComponent(BOT_NAME)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.status === 'running' || data.status === 'started') {
+                          setIframeKey(k => k + 1);
+                          break;
+                        }
+                      }
+                    } catch {}
+                  }
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setIsRestarting(false);
+                }
+              }}
+              disabled={isRestarting}
+              className="p-1 rounded text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              title="Restart tmux and ttyd"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRestarting ? "animate-spin" : ""}>
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setReadOnly(!readOnly)}
+              className={`p-1 rounded transition-colors ${readOnly ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white'}`}
+              title={readOnly ? '只读模式 (点击取消)' : '点击进入只读模式'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </button>
+          </div>
         </div>
       )}
       
       {/* Full Screen Iframe */}
       <div className="absolute inset-0" style={{ top: paneTitle ? '32px' : 0 }}>
-        <TtydFrame url={iframeUrl} isInteractingWithOverlay={isInteracting || (!settings.showPrompt && !settings.showVoiceControl)} />
+        <TtydFrame key={iframeKey} url={iframeUrl} isInteractingWithOverlay={isInteracting || (!settings.showPrompt && !settings.showVoiceControl)} />
         {/* Read-only mask */}
         {readOnly && (
           <div className="absolute inset-0 bg-black/30 z-10 pointer-events-auto" />
