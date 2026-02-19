@@ -1,12 +1,8 @@
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const TTYD_BASE = import.meta.env.VITE_TTYD_URL || '';
 const TTYD_WEB_BASE = import.meta.env.VITE_TTYD_WEB_URL || '';
-const PROXY_BASE = import.meta.env.VITE_PROXY_URL || '';
 
 export const getApiUrl = (path: string) => {
-  if (path === '/api/correctEnglish') {
-    return PROXY_BASE + path;
-  }
   if (path.startsWith('/ttyd/') && !path.startsWith('/ttyd/status')) {
     return TTYD_BASE + path;
   }

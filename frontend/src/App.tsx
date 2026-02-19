@@ -138,7 +138,7 @@ const App: React.FC = () => {
       if (savedToken) {
         // Verify token is still valid
         try {
-          const res = await fetch('/api/tmux', {
+          const res = await fetch(getApiUrl('/api/tmux'), {
             method: 'POST',
             headers: { 
               'Authorization': `Bearer ${savedToken}`,

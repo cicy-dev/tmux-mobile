@@ -3,12 +3,216 @@ import https from 'https';
 import httpProxy from 'http-proxy';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import os from 'os';
 import crypto from 'crypto';
 import { URL } from 'url';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+
+function addCorsHeaders(res: http.ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+}
+
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 6901;
+
+interface GlobalConfig {
+  api_token: string;
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+};
+
+function loadOrGenerateToken(): string {
+  const configPath = path.join(os.homedir(), 'personal', 'global.json');
+  const configDir = path.dirname(configPath);
+
+  try {
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+
+    if (fs.existsSync(configPath)) {
+      const config: GlobalConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.api_token) {
+        console.log(`✓ Loaded token from ${configPath}`);
+        return config.api_token;
+      }
+    }
+
+    const newToken = crypto.randomBytes(32).toString('hex');
+    const config: GlobalConfig = { api_token: newToken };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    console.log(`✓ Generated new token and saved to ${configPath}`);
+    return newToken;
+  } catch (e) {
+    const error = e as Error;
+    console.error('Error loading/generating token:', error.message);
+    return '123456';
+  }
+}
+
+const TOKEN = loadOrGenerateToken();
+
+function checkToken(req: http.IncomingMessage): boolean {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.searchParams.get('token') === TOKEN) return true;
+  const auth = req.headers['authorization'];
+  if (auth === 'Bearer ' + TOKEN) return true;
+  return false;
+}
+
+const proxy = httpProxy.createProxyServer({});
+
+proxy.on('error', (err: Error) => {
+  console.error('Proxy error:', err.message);
+});
+
+proxy.on('proxyRes', (proxyRes: http.IncomingMessage) => {
+  delete proxyRes.headers['www-authenticate'];
+});
+
+function json<T>(res: http.ServerResponse, data: T): void {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
+  const urlPath = new URL(req.url || '/', 'http://localhost').pathname;
+
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    addCorsHeaders(res);
+    res.writeHead(204);
+    return res.end();
+  }
+
+  addCorsHeaders(res);
+
+  if (urlPath === '/api/health' && req.method === 'GET') {
+    return json(res, {
+      success: true,
+      version: getVersion(),
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (urlPath.startsWith('/ttyd/')) {
+    const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
+    if (m) {
+      const name = m[1];
+      let port: string;
+      let token: string;
+
+      // Check for token in query param first
+      const url = new URL(req.url || '/', 'http://localhost');
+      const queryToken = url.searchParams.get('token');
+
+      // Query fast-api for port and token by name
+      try {
+        const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(name)}`;
+        const response = await fetch(fastApiUrl, {
+          headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+          res.writeHead(404);
+          return res.end('pane not found');
+        }
+        const data = await response.json() as { port: number; token: string };
+        port = String(data.port);
+        token = data.token || '';
+
+        if (queryToken !== TOKEN) {
+          if (queryToken !== token && !req.url?.endsWith("token")) {
+              return res.writeHead(401);
+          }
+        }
+
+      } catch (e) {
+        res.writeHead(502);
+        return res.end('fast-api error');
+      }
+
+      req.url = m[2] || '/';
+      delete req.headers['authorization'];
+      req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + token).toString('base64');
+
+      return proxy.web(req, res, { target: 'http://127.0.0.1:' + port });
+    }
+  }
+
+  if (!checkToken(req)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'unauthorized' }));
+  }
+});
+
+server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex, head: Buffer) => {
+  const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
+  if (m) {
+    const name = m[1];
+    let port: string;
+    let token: string;
+
+    // Query fast-api for port and token by name
+    const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(name)}`;
+    fetch(fastApiUrl, {
+      headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+    }).then((response) => {
+        if (!response.ok) {
+          socket.destroy();
+          return;
+        }
+        response.json().then((data: { port: number; token: string }) => {
+          const wsPort = String(data.port);
+          const wsToken = data.token || '';
+
+          const wsUrl = new URL(req.url || '/', 'http://localhost');
+          const wsQueryToken = wsUrl.searchParams.get('token');
+
+          if (wsQueryToken !== TOKEN) {
+            if (wsQueryToken !== wsToken) {
+                throw new Error("401")
+            }
+          }
+          req.url = m[2] || '/';
+          delete req.headers['authorization'];
+
+          req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + wsToken).toString('base64');
+
+          proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + wsPort });
+        }).catch(() => socket.destroy());
+      });
+  } else {
+    socket.destroy();
+  }
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 ttyd-proxy on :' + PORT);
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -155,22 +359,6 @@ function getTtydAuth(port: number): string | null {
   return null;
 }
 
-const distPath = path.join(__dirname, '..', 'dist');
-
-function serveStatic(req: http.IncomingMessage, res: http.ServerResponse): void {
-  const urlPath = new URL(req.url || '/', 'http://localhost').pathname;
-  let filePath = path.join(distPath, urlPath === '/' ? 'index.html' : urlPath);
-  if (!fs.existsSync(filePath)) filePath = path.join(distPath, 'index.html');
-  const ext = path.extname(filePath);
-  try {
-    const data = fs.readFileSync(filePath);
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-    res.end(data);
-  } catch {
-    res.writeHead(404);
-    res.end('Not Found');
-  }
-}
 
 function json<T>(res: http.ServerResponse, data: T): void {
   res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -205,11 +393,6 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
       timestamp: new Date().toISOString()
     });
   }
-
-  if (!urlPath.startsWith('/api/') && !urlPath.startsWith('/ttyd/')) {
-    return serveStatic(req, res);
-  }
-
   if (urlPath.startsWith('/ttyd/')) {
     const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
     if (m) {
@@ -351,8 +534,6 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
       return json(res, { success: false, error: error.message });
     }
   }
-
-  serveStatic(req, res);
 });
 
 function fallbackCorrect(text: string): string {
