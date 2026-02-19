@@ -115,6 +115,7 @@ export const WebTerminalApp: React.FC = () => {
   };
 
   const handleLogin = (newToken: string) => {
+    localStorage.setItem('token', newToken);
     setToken(newToken);
   };
 
