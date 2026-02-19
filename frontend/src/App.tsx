@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [paneTitle, setPaneTitle] = useState<string>('');
+  const [readOnly, setReadOnly] = useState(false);
   
   // UI State
   const [isInteracting, setIsInteracting] = useState(false);
@@ -557,14 +558,28 @@ const App: React.FC = () => {
     <div className="relative w-screen h-screen bg-black overflow-hidden font-sans">
       {/* Title Bar */}
       {paneTitle && (
-        <div className="absolute top-0 left-0 right-0 h-8 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 flex items-center px-3 z-30">
+        <div className="absolute top-0 left-0 right-0 h-8 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 flex items-center justify-between px-3 z-30">
           <span className="text-sm text-gray-300 truncate">{paneTitle}</span>
+          <button
+            onClick={() => setReadOnly(!readOnly)}
+            className={`p-1 rounded transition-colors ${readOnly ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white'}`}
+            title={readOnly ? '只读模式 (点击取消)' : '点击进入只读模式'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </button>
         </div>
       )}
       
       {/* Full Screen Iframe */}
       <div className="absolute inset-0" style={{ top: paneTitle ? '32px' : 0 }}>
         <TtydFrame url={iframeUrl} isInteractingWithOverlay={isInteracting || (!settings.showPrompt && !settings.showVoiceControl)} />
+        {/* Read-only mask */}
+        {readOnly && (
+          <div className="absolute inset-0 bg-black/30 z-10 pointer-events-auto" />
+        )}
       </div>
 
       {/* Voice Mode Active - Show button to return to Prompt */}
