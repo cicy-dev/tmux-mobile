@@ -7,6 +7,7 @@ import { LoginForm } from './components/LoginForm';
 import { TmuxSplitControls } from './components/TmuxSplitControls';
 import { MultiTerminalView } from './components/MultiTerminalView';
 import { sendCommandToTmux, sendSystemEvent, sendShortcut } from './services/mockApi';
+import { getApiUrl } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 
 // 从 URL query 获取参数
@@ -311,7 +312,7 @@ const App: React.FC = () => {
     setCorrectedText('');
     
     try {
-      const response = await fetch('/api/correctEnglish', {
+      const response = await fetch(getApiUrl('/api/correctEnglish'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
