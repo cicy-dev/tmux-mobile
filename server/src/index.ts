@@ -213,34 +213,26 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
   if (urlPath.startsWith('/ttyd/')) {
     const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
     if (m) {
-      const nameOrPort = m[1];
+      const name = m[1];
       let port: string;
       let token: string;
 
-      // Check if it's a port number or a name
-      if (/^\d+$/.test(nameOrPort)) {
-        // It's a port number - get token from bots
-        port = nameOrPort;
-        const bot = loadBots().find((b) => String(b.ttyd_port) === port);
-        token = bot?.ttyd_token || '';
-      } else {
-        // It's a name - query fast-api for port and token
-        try {
-          const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(nameOrPort)}`;
-          const response = await fetch(fastApiUrl, {
-            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
-          });
-          if (!response.ok) {
-            res.writeHead(404);
-            return res.end('pane not found');
-          }
-          const data = await response.json() as { port: number; token: string };
-          port = String(data.port);
-          token = data.token || '';
-        } catch (e) {
-          res.writeHead(502);
-          return res.end('fast-api error');
+      // Query fast-api for port and token by name
+      try {
+        const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(name)}`;
+        const response = await fetch(fastApiUrl, {
+          headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+        });
+        if (!response.ok) {
+          res.writeHead(404);
+          return res.end('pane not found');
         }
+        const data = await response.json() as { port: number; token: string };
+        port = String(data.port);
+        token = data.token || '';
+      } catch (e) {
+        res.writeHead(502);
+        return res.end('fast-api error');
       }
 
       req.url = m[2] || '/';
@@ -370,21 +362,15 @@ function fallbackCorrect(text: string): string {
 server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex, head: Buffer) => {
   const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
   if (m) {
-    const nameOrPort = m[1];
+    const name = m[1];
     let port: string;
     let token: string;
 
-    // Check if it's a port number or a name
-    if (/^\d+$/.test(nameOrPort)) {
-      port = nameOrPort;
-      const bot = loadBots().find((b) => String(b.ttyd_port) === port);
-      token = bot?.ttyd_token || '';
-    } else {
-      // It's a name - query fast-api for port and token
-      const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(nameOrPort)}`;
-      fetch(fastApiUrl, {
-        headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
-      }).then((response) => {
+    // Query fast-api for port and token by name
+    const fastApiUrl = `http://127.0.0.1:14444/api/ttyd/by-name/${encodeURIComponent(name)}`;
+    fetch(fastApiUrl, {
+      headers: { 'Authorization': `Bearer ${TOKEN}`, 'Accept': 'application/json' }
+    }).then((response) => {
         if (!response.ok) {
           socket.destroy();
           return;
@@ -409,8 +395,7 @@ server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex
 
           proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + wsPort });
         }).catch(() => socket.destroy());
-      }).catch(() => socket.destroy());
-    }
+      });
   } else {
     socket.destroy();
   }
