@@ -1,7 +1,12 @@
 import { SystemEvent } from '../types';
 import { getApiUrl } from './apiUrl';
 
-const getToken = () => localStorage.getItem('token') || '';
+const getToken = () => {
+  const stored = localStorage.getItem('token');
+  if (stored) return stored;
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('token') || '';
+};
 const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() });
 
 // 发送命令到 tmux
