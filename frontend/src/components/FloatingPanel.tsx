@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
-import { GripHorizontal, Maximize2, X } from 'lucide-react';
+import { GripHorizontal, X } from 'lucide-react';
 import { Position, Size } from '../types';
 
 interface FloatingPanelProps {
@@ -189,11 +189,11 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
       {/* Resize Handle */}
       <div
-        className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded-tl-lg transition-colors z-50 touch-none"
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end z-50 touch-none"
         onMouseDown={handleStartResize}
         onTouchStart={handleStartResize}
       >
-        <div className="w-3 h-3 border-r-2 border-b-2 border-gray-400"></div>
+        <div className="w-2 h-2 border-r-2 border-b-2 border-gray-500 opacity-50"></div>
       </div>
     </div>
   );
