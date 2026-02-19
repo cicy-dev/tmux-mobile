@@ -189,11 +189,13 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
       {/* Resize Handle */}
       <div
-        className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize flex items-end justify-end z-50 touch-none"
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-50 touch-none"
         onMouseDown={handleStartResize}
         onTouchStart={handleStartResize}
       >
-        <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-gray-500 rounded-bl-sm opacity-60"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" className="absolute -bottom-1 -right-1 opacity-40">
+          <path d="M14 14L8 14L14 8Z" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400"/>
+        </svg>
       </div>
     </div>
   );
