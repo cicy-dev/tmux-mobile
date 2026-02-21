@@ -788,20 +788,18 @@ export const GroupCanvas: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Capture output dialog */}
+      {/* Capture output dialog - full page */}
       {captureOutput !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]" onClick={() => setCaptureOutput(null)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 flex-shrink-0">
-              <span className="text-sm font-semibold text-white">Pane Output: {activePane}</span>
-              <button onClick={() => setCaptureOutput(null)} className="p-1 rounded text-gray-400 hover:text-white">
-                <X size={16} />
-              </button>
-            </div>
-            <pre className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
-              {captureOutput || '(empty)'}
-            </pre>
+        <div className="fixed inset-0 bg-black z-[9999] flex flex-col" onClick={() => setCaptureOutput(null)}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <span className="text-sm font-semibold text-white">Pane Output: {activePane}</span>
+            <button onClick={() => setCaptureOutput(null)} className="p-1 rounded text-gray-400 hover:text-white">
+              <X size={16} />
+            </button>
           </div>
+          <pre className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black" onClick={e => e.stopPropagation()}>
+            {captureOutput || '(empty)'}
+          </pre>
         </div>
       )}
 
