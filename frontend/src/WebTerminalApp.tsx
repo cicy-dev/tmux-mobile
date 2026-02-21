@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Terminal, RefreshCw, Loader2, Clipboard, Layers, X } from 'lucide-react';
+import { Terminal, RefreshCw, Loader2, Clipboard, Layers, Plus,X } from 'lucide-react';
 import { IframeTopbar } from './components/IframeTopbar';
 import { TtydFrame, TtydFrameHandle } from './components/TtydFrame';
-import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
+import { CommandPanel, CommandPanelHandle } from './components/CommandPanel'; 
 import { LoginForm } from './components/LoginForm';
 import { VoiceFloatingButton } from './components/VoiceFloatingButton';
 import { GroupCanvas } from './components/GroupCanvas';
@@ -448,7 +448,16 @@ export const WebTerminalApp: React.FC = () => {
         <>
         <div className="h-14 border-b border-gray-800 flex items-center justify-between px-4 flex-shrink-0">
           <div className="text-white font-semibold">Chats</div>
-          <button
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCapturePane}
+              disabled={isCapturing || !selectedPane}
+              className="p-1 rounded text-yellow-400 hover:bg-gray-800 disabled:opacity-40"
+              title="Capture pane output"
+            >
+              {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
+            </button>
+            <button
             onClick={async () => {
               const autoName = `pane_${Date.now()}`;
               setCreateForm(prev => ({ ...prev, win_name: autoName }));
@@ -486,6 +495,7 @@ export const WebTerminalApp: React.FC = () => {
           >
             {isCreating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
           </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2">
           <div className="space-y-0.5">
@@ -630,14 +640,6 @@ export const WebTerminalApp: React.FC = () => {
             networkStatus={networkStatus}
             rightActions={
               <>
-                <button
-                  onClick={handleCapturePane}
-                  disabled={isCapturing}
-                  className="p-1 rounded text-yellow-400 hover:text-yellow-300 hover:bg-gray-700 disabled:opacity-40"
-                  title="Capture pane output"
-                >
-                  {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
-                </button>
                 <button
                   onClick={loadTmuxPanes}
                   disabled={isLoadingPanes}
