@@ -460,7 +460,7 @@ export const GroupCanvas: React.FC<Props> = ({
                         ? 'bg-purple-800'
                         : 'bg-gray-900 hover:bg-gray-800'
                     }`}
-                  >
+                    >
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <Move size={11} className={activePane === layout.pane_id ? 'text-white' : 'text-gray-600'} />
                       <span className={`text-xs truncate ${activePane === layout.pane_id ? 'text-white font-medium' : 'text-gray-400'}`}>{title}</span>

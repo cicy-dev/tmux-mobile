@@ -12,6 +12,8 @@ interface TtydFrameProps {
 
 export interface TtydFrameHandle {
   scrollToBottom: () => void;
+  reload: () => void;
+  getUrl: () => string | undefined;
 }
 
 export const TtydFrame = forwardRef<TtydFrameHandle, TtydFrameProps>(
@@ -28,6 +30,15 @@ export const TtydFrame = forwardRef<TtydFrameHandle, TtydFrameProps>(
           // cross-origin or not ready
         }
       },
+      reload: () => {
+        const iframe = iframeRef.current;
+        if (iframe) {
+          const currentSrc = iframe.src;
+          iframe.src = '';
+          setTimeout(() => { iframe.src = currentSrc; }, 10);
+        }
+      },
+      getUrl: () => ttydUrl,
     }));
 
     return (

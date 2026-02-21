@@ -68,10 +68,26 @@ export const WebTerminalApp: React.FC = () => {
 
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // --- FloatingPanel state (from App.tsx) ---
+  // --- FloatingPanel state (from SinglePaneApp) ---
   const [isInteracting, setIsInteracting] = useState(false);
-  const [panelPosition, setPanelPosition] = useState<Position>({ x: 20, y: Math.max(60, window.innerHeight - 220) });
+  const getPanelStorageKey = (paneTarget?: string) => paneTarget ? `panel_state_${paneTarget.replace(/[^a-zA-Z0-9]/g, '_')}` : null;
+  const loadPanelState = (paneTarget: string): { position: Position; size: Size } | null => {
+    const key = getPanelStorageKey(paneTarget);
+    if (!key) return null;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return null; }
+    }
+    return null;
+  };
+  const savePanelState = (paneTarget: string, position: Position, size: Size) => {
+    const key = getPanelStorageKey(paneTarget);
+    if (!key) return;
+    localStorage.setItem(key, JSON.stringify({ position, size }));
+  };
+  const [panelPosition, setPanelPosition] = useState<Position>(() => ({ x: Math.max(20, window.innerWidth / 2 - 170), y: Math.max(60, window.innerHeight - 180) }));
   const [panelSize, setPanelSize] = useState<Size>({ width: 340, height: 160 });
 
   const [readOnly, setReadOnly] = useState(true);
@@ -104,6 +120,23 @@ export const WebTerminalApp: React.FC = () => {
       loadGroups();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (selectedPane) {
+      const state = loadPanelState(selectedPane.target);
+      if (state) {
+        setPanelPosition(state.position);
+        setPanelSize(state.size);
+      }
+    }
+  }, [selectedPane?.target]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const loadGroups = async () => {
     if (!token) return;
@@ -326,9 +359,17 @@ export const WebTerminalApp: React.FC = () => {
 
   const handleDeletePane = async () => {
     if (!token || !editingPane) return;
-    if (!confirm(`Delete pane "${editingPane.target}"?`)) return;
     const res = await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(editingPane.target)}`), {
       method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    });
+    if (res.ok) { setEditingPane(null); loadTmuxPanes(); }
+  };
+
+  const handleRestartPane = async () => {
+    if (!token || !editingPane) return;
+    const res = await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(editingPane.target)}/restart`), {
+      method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     });
     if (res.ok) { setEditingPane(null); loadTmuxPanes(); }
@@ -428,6 +469,7 @@ export const WebTerminalApp: React.FC = () => {
           </button>
         </div>
         <div className="flex flex-col items-center gap-2">
+          <span className="text-[10px] text-gray-600">v2.5.0</span>
           <button onClick={() => { localStorage.removeItem('token'); setToken(null); }} className="p-2 rounded text-gray-400 hover:bg-gray-800 hover:text-red-400" title="Logout">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
@@ -631,18 +673,28 @@ export const WebTerminalApp: React.FC = () => {
             networkLatency={networkLatency}
             networkStatus={networkStatus}
             rightActions={
-              selectedConfig?.url && (
-                <a
-                  href={selectedConfig.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 text-xs border border-blue-500/30 hover:border-blue-400/50 transition-colors"
-                  title="Open in popup mode (ttyd + FloatingPanel only)"
+              <>
+                <button
+                  onClick={() => selectedPane && iframeRefs.current[selectedPane.target]?.reload()}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 text-xs transition-colors"
+                  title="Reload iframe"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  Open
-                </a>
-              )
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  Reload
+                </button>
+                {selectedConfig?.url && (
+                  <a
+                    href={selectedConfig.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 text-xs border border-blue-500/30 hover:border-blue-400/50 transition-colors"
+                    title="Open in popup mode (ttyd + FloatingPanel only)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Open
+                  </a>
+                )}
+              </>
             }
           />
         )}
@@ -671,8 +723,8 @@ export const WebTerminalApp: React.FC = () => {
           )}
         </div>
 
-        {/* Floating command panel */}
-        {selectedPane && !showVoiceControl && (
+        {/* Floating command panel - show in iframe (SinglePaneApp) */}
+        {false && selectedPane && !showVoiceControl && (
           <CommandPanel
             ref={commandPanelRef}
             paneTarget={selectedPane.target}
@@ -685,7 +737,7 @@ export const WebTerminalApp: React.FC = () => {
             onVoiceModeToggle={() => setShowVoiceControl(true)}
             onInteractionStart={() => setIsInteracting(true)}
             onInteractionEnd={() => setIsInteracting(false)}
-            onChange={(pos, sz) => { setPanelPosition(pos); setPanelSize(sz); }}
+            onChange={(pos, sz) => { setPanelPosition(pos); setPanelSize(sz); if (selectedPane) savePanelState(selectedPane.target, pos, sz); }}
             onCapturePane={handleCapturePane}
             isCapturing={isCapturing}
           />
@@ -696,7 +748,7 @@ export const WebTerminalApp: React.FC = () => {
           <div
             className="absolute inset-0 z-10 pointer-events-auto cursor-text"
             style={{ top: '32px' }}
-            onClick={() => commandPanelRef.current?.focusTextarea()}
+            onClick={() => { setToast('Click the panel to focus'); commandPanelRef.current?.focusTextarea(); }}
           />
         )}
 
@@ -944,7 +996,21 @@ echo Starting...
             {/* Footer */}
             <div className="flex gap-3 px-6 py-4 border-t border-gray-700/60 bg-gray-900/50 flex-shrink-0">
               <button
-                onClick={handleDeletePane}
+                onClick={() => {
+                  if (confirm(`Restart pane "${editingPane.target}"?`)) {
+                    handleRestartPane();
+                  }
+                }}
+                className="px-4 py-2.5 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-lg hover:bg-orange-500/20 hover:border-orange-400/50 hover:text-orange-300 text-sm transition-colors"
+              >
+                Restart
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete pane "${editingPane.target}"?`)) {
+                    handleDeletePane();
+                  }
+                }}
                 className="px-4 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/20 hover:border-red-400/50 hover:text-red-300 text-sm transition-colors"
               >
                 Delete Pane
@@ -984,6 +1050,13 @@ echo Starting...
           <pre className="flex-1 p-4 text-green-400 text-xs font-mono overflow-auto whitespace-pre-wrap break-all">
             {captureOutput || '(empty)'}
           </pre>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="absolute bottom-4 left-4 z-50 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400">
+          {toast}
         </div>
       )}
     </div>

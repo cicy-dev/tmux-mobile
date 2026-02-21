@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect ,useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Loader2, CheckCircle, Sparkles, History, X, Check, Mic, Clipboard } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 import { Position, Size } from '../types';
@@ -44,6 +44,34 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tempDraft, setTempDraft] = useState('');
+
+  const tempPaneId = paneTarget.replace(/[^a-zA-Z0-9]/g, '_');
+
+  const CMD_HISTORY_KEY = `cmd_history_${tempPaneId}`;
+
+  useEffect(() => {
+    const saved = localStorage.getItem(CMD_HISTORY_KEY);
+    if (saved) {
+      try { setCommandHistory(JSON.parse(saved)); } catch {}
+    }
+  }, [paneTarget]);
+
+  const saveCommandHistory = (history: string[]) => {
+    localStorage.setItem(CMD_HISTORY_KEY, JSON.stringify(history));
+  };
+
+  const DRAFT_KEY = `cmd_draft_${tempPaneId}`;
+  const saveDraft = (text: string) => {
+    localStorage.setItem(DRAFT_KEY, text);
+  };
+
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(DRAFT_KEY);
+    if (savedDraft) {
+      setPromptText(savedDraft);
+    }
+  }, [paneTarget]);
+
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [correctedText, setCorrectedText] = useState('');
@@ -59,10 +87,13 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     e?.preventDefault();
     const cmd = promptText.trim();
     if (!cmd || !paneTarget) return;
-    setCommandHistory(prev => [cmd, ...prev.filter(c => c !== cmd)].slice(0, 50));
+    const newHistory = [cmd, ...commandHistory.filter(c => c !== cmd)].slice(0, 50);
+    setCommandHistory(newHistory);
+    saveCommandHistory(newHistory);
     setHistoryIndex(-1);
     setTempDraft('');
     setPromptText('');
+    saveDraft('');
     setIsSending(true);
     setSendSuccess(false);
     try {
@@ -153,6 +184,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               value={promptText}
               onChange={(e) => {
                 setPromptText(e.target.value);
+                saveDraft(e.target.value);
                 if (historyIndex === -1) setTempDraft(e.target.value);
               }}
               onKeyDown={(e) => {

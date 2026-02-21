@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import App from './App';
+import SinglePaneApp from './SinglePaneApp';
 import TelegramWebView from './TelegramWebView';
 import WebTerminalApp from './WebTerminalApp';
 
@@ -41,7 +41,7 @@ export const Router: React.FC = () => {
   // If token parameter exists, use Telegram mode (original App)
   if (isTelegramMode) {
     // Directly go to terminal interface, skip TelegramWebView selection
-    return <App />;
+    return <SinglePaneApp />;
   }
 
   // No token parameter, use Web mode with sidebar

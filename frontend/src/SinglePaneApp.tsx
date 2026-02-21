@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Terminal, Loader2, Clipboard, X } from 'lucide-react';
-import { TtydFrame } from './components/TtydFrame';
+import { TtydFrame, TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
 import { IframeTopbar } from './components/IframeTopbar';
 import { VoiceFloatingButton } from './components/VoiceFloatingButton';
@@ -15,7 +15,7 @@ const BOT_NAME = new URLSearchParams(window.location.search).get('bot_name') || 
 const TMUX_TARGET = `${BOT_NAME}`;
 
 const DEFAULT_SETTINGS: AppSettings = {
-  panelPosition: { x: 20, y: 20 },
+  panelPosition: { x: Math.max(20, window.innerWidth / 2 - 150), y: Math.max(60, window.innerHeight - 160) },
   panelSize: { width: 300, height: 140 },
   forwardEvents: false,
   lastDraft: '',
@@ -52,11 +52,13 @@ const App: React.FC = () => {
 
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
+  const [toast, setToast] = useState<string | null>(null);
 
   const [isListening, setIsListening] = useState(false);
   const voiceModeRef = useRef<'append' | 'direct'>('append');
   const recognitionRef = useRef<any>(null);
   const commandPanelRef = useRef<CommandPanelHandle>(null);
+  const iframeRef = useRef<TtydFrameHandle>(null);
 
   const TTYD_BASE = import.meta.env.VITE_TTYD_URL || '';
   const iframeUrl = `${TTYD_BASE}/ttyd/${BOT_NAME}/?token=${token || ''}`;
@@ -162,6 +164,13 @@ const App: React.FC = () => {
     const interval = setInterval(checkHealth, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const handleLogin = (newToken: string) => setToken(newToken);
 
@@ -278,6 +287,14 @@ const App: React.FC = () => {
         rightActions={
           <>
             <button
+              onClick={() => iframeRef.current?.reload()}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 text-xs transition-colors"
+              title="Reload page"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Reload
+            </button>
+            <button
               onClick={handleCapturePane}
               disabled={isCapturing}
               className="p-1 rounded text-yellow-400 hover:text-yellow-300 hover:bg-gray-700 disabled:opacity-40"
@@ -324,6 +341,7 @@ const App: React.FC = () => {
       {/* Full-screen iframe */}
       <div className="absolute inset-0" style={{ top: '32px' }}>
         <TtydFrame
+          ref={iframeRef}
           key={iframeKey}
           url={iframeUrl}
           isInteractingWithOverlay={isInteracting || (!settings.showPrompt && !settings.showVoiceControl)}
@@ -331,7 +349,7 @@ const App: React.FC = () => {
         {readOnly && (
           <div
             className="absolute inset-0 z-10 pointer-events-auto cursor-text"
-            onClick={() => commandPanelRef.current?.focusTextarea()}
+            onClick={() => { setToast('Click the panel to focus'); commandPanelRef.current?.focusTextarea(); }}
           />
         )}
       </div>
@@ -390,6 +408,13 @@ const App: React.FC = () => {
               {captureOutput || '(empty)'}
             </pre>
           </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="absolute bottom-4 left-4 z-50 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400">
+          {toast}
         </div>
       )}
     </div>

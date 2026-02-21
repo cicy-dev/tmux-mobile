@@ -12,7 +12,15 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function getHostIP(): string {
+  // Use Docker's internal gateway - more reliable than detecting IP
+  return process.env.HOST_IP || 'host.docker.internal';
+}
+
+const HOST_IP = process.env.HOST_IP || getHostIP();
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+
+console.log('[INFO] HOST_IP:', HOST_IP);
 
 function addCorsHeaders(res: http.ServerResponse) {
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
@@ -125,7 +133,17 @@ proxy.on('error', (err: Error) => {
   console.error('Proxy error:', err.message);
 });
 
-proxy.on('proxyRes', (proxyRes: http.IncomingMessage) => {
+const cssStyle = `
+<style>
+  .xterm .xterm-viewport::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+  .xterm .xterm-viewport { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+</style>`;
+
+proxy.on('error', (err: Error) => {
+  console.error('Proxy error:', err.message);
+});
+
+proxy.on('proxyRes', (proxyRes: http.IncomingMessage, req: http.IncomingMessage, res: http.ServerResponse) => {
   delete proxyRes.headers['www-authenticate'];
 });
 
@@ -164,7 +182,8 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
     const m = req.url?.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
     if (m) {
       const name = m[1];
-      const subPath = m[2] || '/';
+      let subPath = m[2] || '/';
+      subPath = subPath.split('?')[0];
 
       // ttyd internal token refresh: no query token required, proxy directly
       if (subPath === '/token') {
@@ -173,7 +192,7 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
         req.url = '/token';
         delete req.headers['authorization'];
         req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + cfg.token).toString('base64');
-        return proxy.web(req, res, { target: 'http://127.0.0.1:' + cfg.port });
+        return proxy.web(req, res, { target: 'http://' + HOST_IP + ':' + cfg.port });
       }
 
       // All other sub-paths require query token
@@ -194,7 +213,35 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
       delete req.headers['authorization'];
       req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + cfg.token).toString('base64');
 
-      return proxy.web(req, res, { target: 'http://127.0.0.1:' + cfg.port });
+      if (subPath === '/') {
+        const options = {
+          hostname: HOST_IP,
+          port: cfg.port,
+          path: '/',
+          method: 'GET',
+          headers: {
+            'Authorization': 'Basic ' + Buffer.from('user:' + cfg.token).toString('base64')
+          }
+        };
+        const proxyReq = http.request(options, (proxyRes) => {
+          let body = '';
+          proxyRes.on('data', (chunk) => body += chunk);
+          proxyRes.on('end', () => {
+            body = body.replace('</head>', cssStyle + '</head>');
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(body);
+          });
+        });
+        proxyReq.on('error', (e) => {
+          console.error('[INJECT] request error:', e.message);
+          res.writeHead(502);
+          res.end('Bad gateway');
+        });
+        proxyReq.end();
+        return;
+      }
+
+      return proxy.web(req, res, { target: 'http://' + HOST_IP + ':' + cfg.port });
     }
   }
 
@@ -222,7 +269,7 @@ server.on('upgrade', (req: http.IncomingMessage, socket: import('stream').Duplex
       req.url = m[2] || '/';
       delete req.headers['authorization'];
       req.headers['authorization'] = 'Basic ' + Buffer.from('user:' + cfg.token).toString('base64');
-      proxy.ws(req, socket, head, { target: 'http://127.0.0.1:' + cfg.port });
+      proxy.ws(req, socket, head, { target: 'ws://' + HOST_IP + ':' + cfg.port });
     }).catch(() => socket.destroy());
   } else {
     socket.destroy();
