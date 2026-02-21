@@ -422,26 +422,28 @@ export const GroupCanvas: React.FC<Props> = ({
                 dragHandleClassName="drag-handle"
                 style={{ zIndex: activePane === layout.pane_id ? 1000 : layout.z_index, overflow: 'hidden' }}
               >
-                <div className="flex flex-col w-full h-full border border-gray-700 rounded overflow-hidden shadow-xl bg-black" onClick={() => setActivePane(layout.pane_id)}>
+                <div className={`flex flex-col w-full h-full border rounded overflow-hidden shadow-xl bg-black ${activePane === layout.pane_id ? 'border-blue-500 shadow-lg shadow-blue-900/30' : 'border-gray-700'}`} onClick={() => setActivePane(layout.pane_id)}>
                   {/* TipBar (drag handle) */}
                   <div
                     className={`drag-handle flex items-center justify-between px-2 h-7 border-b flex-shrink-0 cursor-move select-none transition-colors group/titlebar ${
                       activePane === layout.pane_id
-                        ? 'bg-blue-900/50 border-blue-600'
+                        ? 'bg-blue-600 border-blue-500'
                         : 'bg-gray-900 border-gray-700 hover:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <Move size={11} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-xs text-gray-400 truncate">{title}</span>
+                      <Move size={11} className={activePane === layout.pane_id ? 'text-white' : 'text-gray-600'} />
+                      <span className={`text-xs truncate ${activePane === layout.pane_id ? 'text-white font-medium' : 'text-gray-400'}`}>{title}</span>
                     </div>
+                    {activePane === layout.pane_id && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setEditingPane({ target: layout.pane_id, title: paneTitles[layout.pane_id] }); }}
-                      className="opacity-0 group-hover/titlebar:opacity-100 p-1 rounded text-gray-500 hover:text-white hover:bg-gray-600 transition-all flex-shrink-0"
+                      className="opacity-0 group-hover/titlebar:opacity-100 p-1 rounded text-gray-300 hover:text-white hover:bg-gray-600 transition-all flex-shrink-0"
                       title="Edit pane"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                     </button>
+                    )}
                   </div>
                   {/* Terminal */}
                   <div className="flex-1 relative overflow-hidden">
