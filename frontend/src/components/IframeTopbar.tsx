@@ -8,6 +8,7 @@ interface IframeTopbarProps {
   networkLatency: number | null;
   networkStatus: 'excellent' | 'good' | 'poor' | 'offline';
   rightActions?: ReactNode;
+  leftActions?: ReactNode;
 }
 
 export const IframeTopbar: React.FC<IframeTopbarProps> = ({
@@ -17,10 +18,12 @@ export const IframeTopbar: React.FC<IframeTopbarProps> = ({
   networkLatency,
   networkStatus,
   rightActions,
+  leftActions,
 }) => {
   return (
     <div className="absolute top-0 left-0 right-0 h-8 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 flex items-center justify-between px-3 z-30">
       <div className="flex items-center gap-2 min-w-0 mr-2">
+        {leftActions}
         {workspace ? (
           <span className="text-xs text-gray-400 truncate">📁 {workspace}</span>
         ) : (
