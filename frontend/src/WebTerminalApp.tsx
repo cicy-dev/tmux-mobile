@@ -450,14 +450,6 @@ export const WebTerminalApp: React.FC = () => {
           <div className="text-white font-semibold">Chats</div>
           <div className="flex items-center gap-1">
             <button
-              onClick={handleCapturePane}
-              disabled={isCapturing || !selectedPane}
-              className="p-1 rounded text-yellow-400 hover:bg-gray-800 disabled:opacity-40"
-              title="Capture pane output"
-            >
-              {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
-            </button>
-            <button
             onClick={async () => {
               const autoName = `pane_${Date.now()}`;
               setCreateForm(prev => ({ ...prev, win_name: autoName }));
@@ -640,6 +632,14 @@ export const WebTerminalApp: React.FC = () => {
             networkStatus={networkStatus}
             rightActions={
               <>
+                <button
+                  onClick={handleCapturePane}
+                  disabled={isCapturing || !selectedPane}
+                  className="p-1 rounded text-yellow-400 hover:bg-gray-700 disabled:opacity-40"
+                  title="Capture pane output"
+                >
+                  {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
+                </button>
                 <button
                   onClick={loadTmuxPanes}
                   disabled={isLoadingPanes}
