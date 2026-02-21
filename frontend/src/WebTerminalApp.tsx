@@ -454,14 +454,32 @@ export const WebTerminalApp: React.FC = () => {
             <Terminal size={20} className="text-white" />
           </div>
           <button
-            onClick={() => { setSidebarMode('session'); setMainMode('terminal'); setShowPaneList(true); setSelectedGroup(null); setSelectedGroupId(null); }}
+            onClick={() => {
+              if (sidebarMode === 'session' && showPaneList) {
+                setShowPaneList(false);
+              } else {
+                setSidebarMode('session');
+                setMainMode('terminal');
+                setShowPaneList(true);
+                setSelectedGroup(null);
+                setSelectedGroupId(null);
+              }
+            }}
             className={`p-2 rounded ${sidebarMode === 'session' && showPaneList ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
             title="Chats"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </button>
           <button
-            onClick={() => { setSidebarMode('group'); if (selectedGroup) setMainMode('group'); setShowPaneList(true); }}
+            onClick={() => {
+              if (sidebarMode === 'group' && showPaneList) {
+                setShowPaneList(false);
+              } else {
+                setSidebarMode('group');
+                if (selectedGroup) setMainMode('group');
+                setShowPaneList(true);
+              }
+            }}
             className={`p-2 rounded ${sidebarMode === 'group' && showPaneList ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
             title="Groups"
           >
