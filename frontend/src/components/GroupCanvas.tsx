@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
-import { ArrowLeft, Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square } from 'lucide-react';
+import { ArrowLeft, Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square, RefreshCw } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { TtydGroupDetail } from '../types';
 import { TtydFrame } from './TtydFrame';
@@ -80,9 +80,14 @@ export const GroupCanvas: React.FC<Props> = ({
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [isCorrecting, setIsCorrecting] = useState(false);
   const [minimizedPanes, setMinimizedPanes] = useState<Record<string, boolean>>({});
+  const [paneReloadKeys, setPaneReloadKeys] = useState<Record<string, number>>({});
 
   const togglePaneMinimize = (paneId: string) => {
     setMinimizedPanes(prev => ({ ...prev, [paneId]: !prev[paneId] }));
+  };
+
+  const handleReloadPane = (paneId: string) => {
+    setPaneReloadKeys(prev => ({ ...prev, [paneId]: (prev[paneId] || 0) + 1 }));
   };
 
   const handleCapturePaneFor = async (paneId: string) => {
@@ -552,22 +557,25 @@ export const GroupCanvas: React.FC<Props> = ({
           layouts.map(layout => {
             const config = ttydConfigs[layout.pane_id];
             const title = paneTitles[layout.pane_id];
+            const isMin = minimizedPanes[layout.pane_id];
             return (
               <Rnd
                 key={layout.pane_id}
                 position={{ x: layout.pos_x, y: layout.pos_y }}
-                size={{ width: layout.width, height: layout.height }}
+                size={{ width: layout.width, height: isMin ? 28 : layout.height }}
                 onDragStart={() => { setActivePane(layout.pane_id); setIsDragging(true); }}
                 onDragStop={(_e, d) => handleDragStop(layout.pane_id, d)}
-                onResizeStart={() => setIsResizing(true)}
+                onResizeStart={() => { if (isMin) return; setIsResizing(true); }}
                 onResizeStop={(_e, dir, ref, delta, pos) =>
                   handleResizeStop(layout.pane_id, _e, dir, ref, delta, pos)
                 }
                 minWidth={200}
-                minHeight={150}
+                minHeight={28}
                 bounds="parent"
                 dragHandleClassName="drag-handle"
                 style={{ zIndex: activePane === layout.pane_id ? 1000 : layout.z_index, overflow: 'hidden' }}
+                disableDragging={false}
+                enableResizing={!isMin}
               >
                 <div className={`flex flex-col w-full h-full overflow-hidden shadow-xl bg-black rounded-t-lg ${activePane === layout.pane_id ? 'ring-2 ring-purple-500 border border-purple-500 shadow-lg shadow-purple-900/30' : 'border border-gray-700'}`} onClick={() => setActivePane(layout.pane_id)}>
                   {/* TipBar (drag handle) */}
@@ -608,6 +616,13 @@ export const GroupCanvas: React.FC<Props> = ({
                         <ExternalLink size={11} />
                       </button>
                       <button
+                        onClick={(e) => { e.stopPropagation(); handleReloadPane(layout.pane_id); }}
+                        className="p-0.5 mr-1 rounded text-gray-400 hover:text-white"
+                        title="Reload"
+                      >
+                        <RefreshCw size={11} />
+                      </button>
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           const paneConfig = ttydConfigs[layout.pane_id];
@@ -644,6 +659,7 @@ export const GroupCanvas: React.FC<Props> = ({
                   <div className="flex-1 relative overflow-hidden">
                     {config ? (
                       <TtydFrame
+                        key={`${layout.pane_id}-${paneReloadKeys[layout.pane_id] || 0}`}
                         url={getTtydUrl(layout.pane_id, config.token)}
                         isInteractingWithOverlay={false}
                       />
