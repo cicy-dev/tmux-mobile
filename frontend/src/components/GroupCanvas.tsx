@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
-import { ArrowLeft, Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square, RefreshCw } from 'lucide-react';
+import { Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square, RefreshCw } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { TtydGroupDetail } from '../types';
 import { TtydFrame } from './TtydFrame';
@@ -482,13 +482,6 @@ export const GroupCanvas: React.FC<Props> = ({
       {/* TopBar */}
       <div className="flex items-center justify-between px-3 h-8 bg-gray-900 border-b border-gray-800 flex-shrink-0 z-30">
         <div className="flex items-center gap-2">
-          <button
-            onClick={onBack}
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            title="Back to terminal"
-          >
-            <ArrowLeft size={14} />
-          </button>
           <span className="text-white text-sm font-medium truncate max-w-[200px]">{group.name}</span>
           <span className="text-gray-500 text-xs">{layouts.length} pane{layouts.length !== 1 ? 's' : ''}</span>
         </div>
