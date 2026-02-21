@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
-import { ArrowLeft, Grid, Move, Users, X, Send, RefreshCw, Clipboard, ExternalLink, Sparkles, Check, Minus, Square } from 'lucide-react';
+import { ArrowLeft, Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { TtydGroupDetail } from '../types';
 import { TtydFrame } from './TtydFrame';
 import { PanePicker } from './PanePicker';
+import { EditPaneDialog, EditPaneData } from './EditPaneDialog';
 import { calculateAutoGrid } from '../utils/autoGrid';
 import { getApiUrl, getTtydUrl } from '../services/apiUrl';
 import { sendCommandToTmux, sendShortcut } from '../services/mockApi';
@@ -14,6 +15,13 @@ interface TtydConfig {
   title?: string;
   port: number;
   token: string;
+  workspace?: string;
+  active?: boolean;
+  init_script?: string;
+  proxy?: string;
+  tg_enable?: boolean;
+  tg_token?: string;
+  tg_chat_id?: string;
 }
 
 interface TmuxPane {
@@ -59,7 +67,7 @@ export const GroupCanvas: React.FC<Props> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [activePane, setActivePane] = useState<string | null>(layouts[0]?.pane_id || null);
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
-  const [editingPane, setEditingPane] = useState<{ target: string; title: string } | null>(null);
+  const [editingPane, setEditingPane] = useState<EditPaneData | null>(null);
   const [editingGroup, setEditingGroup] = useState<{ name: string; description: string } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: 'restart' | 'delete'; target: string; title: string } | null>(null);
   const [paneCommands, setPaneCommands] = useState<Record<string, string>>({});
@@ -73,14 +81,14 @@ export const GroupCanvas: React.FC<Props> = ({
   const [isCorrecting, setIsCorrecting] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  const handleCapturePane = async () => {
-    if (!activePane || isCapturing) return;
+  const handleCapturePaneFor = async (paneId: string) => {
+    if (isCapturing) return;
     setIsCapturing(true);
     try {
       const res = await fetch(getApiUrl('/api/tmux/capture_pane'), {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ pane_id: activePane, start: -200 }),
+        body: JSON.stringify({ pane_id: paneId, start: -200 }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -90,16 +98,8 @@ export const GroupCanvas: React.FC<Props> = ({
     finally { setIsCapturing(false); }
   };
 
-  const handleOpenNewWindow = () => {
-    if (!activePane) return;
-    const config = ttydConfigs[activePane];
-    if (config) {
-      window.open(getTtydUrl(activePane, config.token), '_blank');
-    }
-  };
-
-  const handleCorrectEnglish = async () => {
-    const text = paneCommands[activePane || '']?.trim();
+  const handleCorrectEnglishForPane = async (paneId: string) => {
+    const text = paneCommands[paneId]?.trim();
     if (!text || isCorrecting || !token) return;
     setIsCorrecting(true);
     try {
@@ -122,8 +122,6 @@ export const GroupCanvas: React.FC<Props> = ({
     savePaneDraft(activePane, correctedText);
     setCorrectedText(null);
   };
-
-  const SYNC_TIMER_KEY = `group_${group.id}_history_sync`;
 
   useEffect(() => {
     const loadedHistory: Record<string, string[]> = {};
@@ -376,7 +374,16 @@ export const GroupCanvas: React.FC<Props> = ({
       await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(editingPane.target)}`), {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ title: editingPane.title }),
+        body: JSON.stringify({
+          title: editingPane.title,
+          active: editingPane.active,
+          workspace: editingPane.workspace,
+          init_script: editingPane.init_script,
+          proxy: editingPane.proxy,
+          tg_enable: editingPane.tg_enable,
+          tg_token: editingPane.tg_token,
+          tg_chat_id: editingPane.tg_chat_id,
+        }),
       });
       setEditingPane(null);
     } catch (e) { console.error(e); }
@@ -405,9 +412,10 @@ export const GroupCanvas: React.FC<Props> = ({
   };
 
   const handleRestartPane = async () => {
-    if (!confirmAction || !token) return;
+    const target = editingPane?.target || confirmAction?.target;
+    if (!target || !token) return;
     try {
-      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(confirmAction.target)}/restart`), {
+      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(target)}/restart`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -416,13 +424,15 @@ export const GroupCanvas: React.FC<Props> = ({
   };
 
   const handleDeletePane = async () => {
-    if (!confirmAction || !token) return;
+    const target = editingPane?.target || confirmAction?.target;
+    if (!target || !token) return;
     try {
-      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(confirmAction.target)}`), {
+      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(target)}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       setConfirmAction(null);
+      setEditingPane(null);
       const gRes = await fetch(getApiUrl(`/api/groups/${group.id}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -515,30 +525,6 @@ export const GroupCanvas: React.FC<Props> = ({
             </button>
           </div>
           <button
-            onClick={handleCorrectEnglish}
-            disabled={!paneCommands[activePane || '']?.trim() || isCorrecting}
-            className="p-1 rounded text-purple-400 hover:text-purple-300 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            title="Correct English with AI"
-          >
-            {isCorrecting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          </button>
-          <button
-            onClick={handleCapturePane}
-            disabled={isCapturing || !activePane}
-            className="p-1 rounded text-yellow-400 hover:text-yellow-300 hover:bg-gray-800 disabled:opacity-40 transition-colors"
-            title="Capture pane output"
-          >
-            {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
-          </button>
-          <button
-            onClick={handleOpenNewWindow}
-            disabled={!activePane}
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-40 transition-colors"
-            title="Open in new window"
-          >
-            <ExternalLink size={14} />
-          </button>
-          <button
             onClick={() => setIsMinimized(v => !v)}
             className={`p-1 rounded transition-colors ${isMinimized ? 'text-blue-400 hover:text-blue-300' : 'text-gray-400 hover:text-white'} hover:bg-gray-800`}
             title={isMinimized ? 'Maximize' : 'Minimize'}
@@ -601,12 +587,53 @@ export const GroupCanvas: React.FC<Props> = ({
                       <span className={`text-xs truncate ${activePane === layout.pane_id ? 'text-white font-medium' : 'text-gray-400'}`}>{title}</span>
                     </div>
                     {activePane === layout.pane_id && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingPane({ target: layout.pane_id, title: paneTitles[layout.pane_id] }); }}
-                      title="Edit pane"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                    </button>
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCorrectEnglishForPane(layout.pane_id); }}
+                        disabled={!paneCommands[layout.pane_id]?.trim() || isCorrecting}
+                        className="p-0.5 mr-1 rounded text-purple-400 hover:text-purple-300 disabled:opacity-40"
+                        title="Correct English"
+                      >
+                        {isCorrecting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCapturePaneFor(layout.pane_id); }}
+                        disabled={isCapturing}
+                        className="p-0.5 mr-1 rounded text-yellow-400 hover:text-yellow-300 disabled:opacity-40"
+                        title="Capture pane"
+                      >
+                        {isCapturing ? <Loader2 size={11} className="animate-spin" /> : <Clipboard size={11} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); window.open(getTtydUrl(layout.pane_id, config?.token), '_blank'); }}
+                        className="p-0.5 mr-1 rounded text-gray-400 hover:text-white"
+                        title="Open in new window"
+                      >
+                        <ExternalLink size={11} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const paneConfig = ttydConfigs[layout.pane_id];
+                          setEditingPane({
+                            target: layout.pane_id,
+                            title: paneTitles[layout.pane_id],
+                            workspace: paneConfig?.workspace,
+                            active: paneConfig?.active,
+                            init_script: paneConfig?.init_script,
+                            proxy: paneConfig?.proxy,
+                            tg_enable: paneConfig?.tg_enable,
+                            tg_token: paneConfig?.tg_token,
+                            tg_chat_id: paneConfig?.tg_chat_id,
+                            url: getTtydUrl(layout.pane_id, paneConfig?.token || ''),
+                          });
+                        }}
+                        className="mr-1"
+                        title="Edit pane"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                      </button>
+                    </>
                     )}
                   </div>
                   {/* Terminal */}
@@ -698,71 +725,17 @@ export const GroupCanvas: React.FC<Props> = ({
         />
       )}
 
-      {/* Edit pane modal */}
-      {editingPane && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]" onClick={() => setEditingPane(null)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-              <h3 className="text-sm font-semibold text-white">Edit Pane Title</h3>
-              <button onClick={() => setEditingPane(null)} className="p-1 rounded text-gray-400 hover:text-white">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Pane ID</label>
-                <p className="text-xs text-gray-500 font-mono">{editingPane.target}</p>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={editingPane.title}
-                  onChange={e => setEditingPane({ ...editingPane, title: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter pane title"
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => {
-                    if (confirm(`Restart ${editingPane.target}?`)) {
-                      handleRestartPane();
-                    }
-                  }}
-                  className="px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-500 transition-colors flex items-center gap-1"
-                >
-                  <RefreshCw size={14} /> Restart
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete ${editingPane.target}?`)) {
-                      handleDeletePane();
-                      setEditingPane(null);
-                    }
-                  }}
-                  className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-500 transition-colors flex items-center gap-1"
-                >
-                  <X size={14} /> Delete
-                </button>
-                <button
-                  onClick={() => setEditingPane(null)}
-                  className="flex-1 py-2 bg-gray-800 text-gray-300 rounded text-sm hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSavePaneTitle}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Edit pane dialog */}
+      <EditPaneDialog
+        open={!!editingPane}
+        pane={editingPane}
+        mode="simple"
+        onChange={setEditingPane}
+        onClose={() => setEditingPane(null)}
+        onSave={handleSavePaneTitle}
+        onRestart={() => { handleRestartPane(); }}
+        onDelete={() => { handleDeletePane(); }}
+      />
 
       {/* Edit group modal */}
       {editingGroup && (
