@@ -630,16 +630,6 @@ export const WebTerminalApp: React.FC = () => {
             proxy={selectedConfig?.proxy}
             networkLatency={networkLatency}
             networkStatus={networkStatus}
-            leftActions={
-              <button
-                onClick={loadTmuxPanes}
-                disabled={isLoadingPanes}
-                className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-40"
-                title="Refresh sessions"
-              >
-                <RefreshCw size={14} className={isLoadingPanes ? 'animate-spin' : ''} />
-              </button>
-            }
             rightActions={
               selectedConfig?.url && (
                 <a
