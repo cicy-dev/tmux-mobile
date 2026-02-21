@@ -571,11 +571,21 @@ export const GroupCanvas: React.FC<Props> = ({
                 }
                 minWidth={200}
                 minHeight={28}
+                maxWidth="100%"
+                maxHeight="100%"
                 bounds="parent"
                 dragHandleClassName="drag-handle"
                 style={{ zIndex: activePane === layout.pane_id ? 1000 : layout.z_index, overflow: 'hidden' }}
-                disableDragging={false}
-                enableResizing={!isMin}
+                enableResizing={{
+                  top: !isMin,
+                  right: true,
+                  bottom: !isMin,
+                  left: true,
+                  topRight: !isMin,
+                  bottomRight: !isMin,
+                  bottomLeft: !isMin,
+                  topLeft: !isMin,
+                }}
               >
                 <div className={`flex flex-col w-full h-full overflow-hidden shadow-xl bg-black rounded-t-lg ${activePane === layout.pane_id ? 'ring-2 ring-purple-500 border border-purple-500 shadow-lg shadow-purple-900/30' : 'border border-gray-700'}`} onClick={() => setActivePane(layout.pane_id)}>
                   {/* TipBar (drag handle) */}
