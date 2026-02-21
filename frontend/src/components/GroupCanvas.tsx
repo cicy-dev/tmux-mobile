@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
-import { ArrowLeft, Grid, Move, Users, X, Send } from 'lucide-react';
+import { ArrowLeft, Grid, Move, Users, X, Send, RefreshCw } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { TtydGroupDetail } from '../types';
 import { TtydFrame } from './TtydFrame';
@@ -61,6 +61,7 @@ export const GroupCanvas: React.FC<Props> = ({
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [editingPane, setEditingPane] = useState<{ target: string; title: string } | null>(null);
   const [editingGroup, setEditingGroup] = useState<{ name: string; description: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'restart' | 'delete'; target: string; title: string } | null>(null);
   const [paneCommands, setPaneCommands] = useState<Record<string, string>>({});
   const [paneSending, setPaneSending] = useState<Record<string, boolean>>({});
 
@@ -306,6 +307,35 @@ export const GroupCanvas: React.FC<Props> = ({
     } catch (e) { console.error(e); }
   };
 
+  const handleRestartPane = async () => {
+    if (!confirmAction || !token) return;
+    try {
+      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(confirmAction.target)}/restart`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setConfirmAction(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeletePane = async () => {
+    if (!confirmAction || !token) return;
+    try {
+      await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(confirmAction.target)}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setConfirmAction(null);
+      const gRes = await fetch(getApiUrl(`/api/groups/${group.id}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (gRes.ok) {
+        const newGroup: TtydGroupDetail = await gRes.json();
+        onGroupUpdated(newGroup);
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleSendToPane = async (paneId: string) => {
     const cmd = paneCommands[paneId]?.trim();
     if (!cmd) return;
@@ -513,6 +543,27 @@ export const GroupCanvas: React.FC<Props> = ({
                 />
               </div>
               <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    if (confirm(`Restart ${editingPane.target}?`)) {
+                      handleRestartPane();
+                    }
+                  }}
+                  className="px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-500 transition-colors flex items-center gap-1"
+                >
+                  <RefreshCw size={14} /> Restart
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete ${editingPane.target}?`)) {
+                      handleDeletePane();
+                      setEditingPane(null);
+                    }
+                  }}
+                  className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-500 transition-colors flex items-center gap-1"
+                >
+                  <X size={14} /> Delete
+                </button>
                 <button
                   onClick={() => setEditingPane(null)}
                   className="flex-1 py-2 bg-gray-800 text-gray-300 rounded text-sm hover:bg-gray-700 transition-colors"
