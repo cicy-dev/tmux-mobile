@@ -55,10 +55,6 @@ export const WebTerminalApp: React.FC = () => {
     return (localStorage.getItem('sidebar_position') as 'left' | 'right') || 'left';
   });
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarPosition, setSidebarPosition] = useState<'left'>(() => {
-    return (localStorage.getItem('sidebar_position') as 'left' | 'right') || 'left';
-  });
-  const [showSettings, setShowSettings] = useState(false);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({ win_name: '', title: '', proxy: '', init_script: 'pwd' });
