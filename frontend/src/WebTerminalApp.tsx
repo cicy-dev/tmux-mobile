@@ -510,7 +510,14 @@ export const WebTerminalApp: React.FC = () => {
           <div className="text-white font-semibold">Chats</div>
           <div className="flex items-center gap-1">
             <button
-            onClick={async () => {
+              onClick={() => loadTmuxPanes()}
+              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+              title="Refresh list"
+            >
+              <RefreshCw size={14} />
+            </button>
+            <button
+              onClick={async () => {
               const autoName = `pane_${Date.now()}`;
               setCreateForm(prev => ({ ...prev, win_name: autoName }));
               setIsCreating(true);
