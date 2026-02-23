@@ -146,7 +146,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   return (
     <div
       ref={panelRef}
-      className="absolute z-50 flex flex-col bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl overflow-hidden touch-none"
+      className="fixed flex flex-col bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl overflow-hidden touch-none"
       style={{
         left: position.x,
         top: position.y,
@@ -154,6 +154,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         height: size.height,
         minHeight: '140px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        zIndex: 999999,
       }}
     >
       {/* Header / Drag Handle */}

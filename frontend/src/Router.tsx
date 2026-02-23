@@ -7,7 +7,7 @@ type Route = 'telegram' | 'terminal' | 'web';
 
 export const Router: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<Route>('telegram');
-  const [isTelegramMode, setIsTelegramMode] = useState(false);
+  const [isTelegramMode, setIsTelegramMode] = useState(true);
 
   useEffect(() => {
     // Check if token is in URL (Telegram mode)
@@ -38,12 +38,5 @@ export const Router: React.FC = () => {
     };
   }, []);
 
-  // If token parameter exists, use Telegram mode (original App)
-  if (isTelegramMode) {
-    // Directly go to terminal interface, skip TelegramWebView selection
-    return <SinglePaneApp />;
-  }
-
-  // No token parameter, use Web mode with sidebar
-  return <WebTerminalApp />;
+  return <SinglePaneApp />;
 };

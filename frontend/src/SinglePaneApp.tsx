@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Terminal, Loader2, Clipboard, X } from 'lucide-react';
+import { Terminal, Loader2, Clipboard, X, Keyboard, Mic, RotateCcw, Power } from 'lucide-react';
 import { TtydFrame, TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
 import { IframeTopbar } from './components/IframeTopbar';
@@ -11,7 +11,11 @@ import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 
 // Read URL query params
-const BOT_NAME = new URLSearchParams(window.location.search).get('bot_name') || 'cicy_master_xk_bot';
+const m = window.location.href.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
+const BOT_NAME = window.location.href.split("/")[4]
+
+console.log({BOT_NAME})
+// const BOT_NAME = new URLSearchParams(window.location.search).get('bot_name') || '';
 const TMUX_TARGET = `${BOT_NAME}`;
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -146,7 +150,7 @@ const App: React.FC = () => {
     const checkHealth = async () => {
       const startTime = performance.now();
       try {
-        const response = await fetch('/api/health', { method: 'GET', cache: 'no-cache' });
+        const response = await fetch(`${API_BASE}/api/health`, { method: 'GET', cache: 'no-cache' });
         const latency = Math.round(performance.now() - startTime);
         if (response.ok) {
           setNetworkLatency(latency);
@@ -285,10 +289,12 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden font-sans">
+    <div className="relative w-screen h-screen overflow-hidden font-sans" >
       {/* Title bar — hidden when in iframe */}
       {!isInIframe && (
-      <IframeTopbar
+      <div className="bg-black" style={{position:"fixed",zIndex:111111111,top:0,right:0,left:0,height:32}}>
+
+        <IframeTopbar
         title={paneTitle || BOT_NAME}
         workspace={paneWorkspace || undefined}
         networkLatency={networkLatency}
@@ -296,13 +302,27 @@ const App: React.FC = () => {
         rightActions={
           <>
             <button
-              onClick={() => iframeRef.current?.reload()}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 text-xs transition-colors"
+              onClick={() => setSettings(prev => ({ ...prev, showPrompt: !prev.showPrompt }))}
+              className={`p-1.5 rounded transition-colors ${settings.showPrompt ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              title={settings.showPrompt ? "Hide command panel" : "Show command panel"}
+            >
+              <Keyboard size={14} />
+            </button>
+            <button
+              onClick={() => setSettings(prev => ({ ...prev, showVoiceControl: !prev.showVoiceControl }))}
+              className={`p-1.5 rounded transition-colors ${settings.showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              title={settings.showVoiceControl ? "Hide voice mode" : "Show voice mode"}
+            >
+              <Mic size={14} />
+            </button>
+            <button
+              onClick={() => {location.reload()}}
+              className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               title="Reload page"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Reload
+              <RotateCcw size={14} />
             </button>
+            {!settings.showPrompt && (
             <button
               onClick={handleCapturePane}
               disabled={isCapturing}
@@ -311,6 +331,7 @@ const App: React.FC = () => {
             >
               {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
             </button>
+            )}
             <button
               onClick={async () => {
                 if (!confirm('Restart tmux and ttyd?')) return;
@@ -336,44 +357,25 @@ const App: React.FC = () => {
                 finally { setIsRestarting(false); }
               }}
               disabled={isRestarting}
-              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
               title="Restart tmux and ttyd"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRestarting ? 'animate-spin' : ''}>
-                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
+              <Power size={14} className={isRestarting ? 'animate-pulse' : ''} />
             </button>
           </>
         }
       />
+      </div>
       )}
 
-      {/* Full-screen iframe */}
-      <div className="absolute inset-0" style={{ top: isInIframe ? '0px' : '32px' }}>
-        <TtydFrame
-          ref={iframeRef}
-          key={iframeKey}
-          url={iframeUrl}
-          isInteractingWithOverlay={isInteracting || (!settings.showPrompt && !settings.showVoiceControl)}
-        />
         {readOnly && (
           <div
-            className="absolute inset-0 z-10 pointer-events-auto cursor-text"
+            className="fixed inset-0 z-10 pointer-events-auto cursor-text"
+            style={{zIndex:999998}}
             onClick={() => { setToast('Click the panel to focus'); commandPanelRef.current?.focusTextarea(); }}
           />
         )}
-      </div>
 
-      {/* Voice mode active — button to return to prompt */}
-      {settings.showVoiceControl && (
-        <button
-          onClick={() => setSettings(prev => ({ ...prev, showPrompt: true, showVoiceControl: false }))}
-          className="absolute top-4 right-4 z-40 p-3 bg-blue-600/80 hover:bg-blue-500 text-white rounded-full shadow-lg transition-all backdrop-blur-sm"
-          title="Back to Prompt mode"
-        >
-          <Terminal size={20} />
-        </button>
-      )}
 
       {/* Floating command panel */}
       {settings.showPrompt && (
@@ -386,7 +388,6 @@ const App: React.FC = () => {
           panelSize={settings.panelSize}
           readOnly={readOnly}
           onReadOnlyToggle={() => setReadOnly(v => !v)}
-          onVoiceModeToggle={() => setSettings(prev => ({ ...prev, showPrompt: false, showVoiceControl: true }))}
           onInteractionStart={() => setIsInteracting(true)}
           onInteractionEnd={() => setIsInteracting(false)}
           onChange={handlePanelChange}
@@ -397,6 +398,7 @@ const App: React.FC = () => {
 
       {/* Voice floating button */}
       {settings.showVoiceControl && (
+        <div style={{position:"fixed",zIndex:1111111,top:0,right:0,left:0,height:32}}>
         <VoiceFloatingButton
           initialPosition={settings.voiceButtonPosition}
           onPositionChange={pos => setSettings(prev => ({ ...prev, voiceButtonPosition: pos }))}
@@ -404,18 +406,17 @@ const App: React.FC = () => {
           onRecordEnd={() => stopVoiceRecording()}
           isRecordingExternal={isListening && voiceModeRef.current === 'direct'}
         />
+        </div>
       )}
 
       {/* Capture output modal - full page */}
       {captureOutput !== null && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black" onClick={() => setCaptureOutput(null)}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999999] flex flex-col bg-black" onClick={() => setCaptureOutput(null)}>
+          <div className="flex items-center px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0 pointer-events-none">
             <span className="text-sm font-semibold text-white">Pane Output</span>
-            <button onClick={() => setCaptureOutput(null)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
-              <X size={16} />
-            </button>
+            <span className="ml-auto text-xs text-gray-500 pointer-events-auto" onClick={() => setCaptureOutput(null)}>Click to close</span>
           </div>
-          <pre className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black" onClick={e => e.stopPropagation()}>
+          <pre className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black">
             {captureOutput || '(empty)'}
           </pre>
         </div>

@@ -1,5 +1,5 @@
 import React, { useEffect ,useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Loader2, CheckCircle, Sparkles, History, X, Check, Mic, Clipboard } from 'lucide-react';
+import { Loader2, CheckCircle, Sparkles, History, X, Check, Clipboard } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 import { Position, Size } from '../types';
 import { sendCommandToTmux } from '../services/mockApi';
@@ -13,7 +13,6 @@ interface CommandPanelProps {
   panelSize: Size;
   readOnly: boolean;
   onReadOnlyToggle: () => void;
-  onVoiceModeToggle: () => void;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   onChange: (pos: Position, size: Size) => void;
@@ -33,7 +32,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   panelSize,
   readOnly,
   onReadOnlyToggle,
-  onVoiceModeToggle,
   onInteractionStart,
   onInteractionEnd,
   onChange,
@@ -165,13 +163,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
-          </button>
-          <button
-            onClick={onVoiceModeToggle}
-            className="p-2 rounded-lg text-gray-400 hover:bg-red-600 hover:text-white transition-all"
-            title="Switch to voice mode"
-          >
-            <Mic size={18} />
           </button>
         </>
       }
