@@ -1,4 +1,3 @@
-import { SystemEvent } from '../types';
 import { getApiUrl } from './apiUrl';
 
 const getToken = () => {
@@ -27,17 +26,6 @@ export const sendCommandToTmux = async (command: string, tmuxTarget: string): Pr
   }
   
   return { success: data.success, message: data.success ? 'Sent to tmux' : data.detail };
-};
-
-// 转发键盘事件
-export const sendSystemEvent = async (event: SystemEvent): Promise<void> => {
-  if (event.type === 'keydown') {
-    await fetch('/api/key', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ key: event.code }),
-    }).catch(() => {});
-  }
 };
 
 // 转发快捷键

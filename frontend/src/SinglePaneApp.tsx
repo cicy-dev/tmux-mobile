@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Terminal, Loader2, Clipboard, X, Keyboard, Mic, RotateCcw, Power } from 'lucide-react';
+import { Terminal, Loader2, Clipboard, X, Keyboard, Mic, RotateCcw, Power, Pencil } from 'lucide-react';
 import { TtydFrame, TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
 import { IframeTopbar } from './components/IframeTopbar';
@@ -54,6 +54,8 @@ const App: React.FC = () => {
 
   const [isInteracting, setIsInteracting] = useState(false);
   const [multiTerminalMode, setMultiTerminalMode] = useState(false);
+  const [editingPane, setEditingPane] = useState<Record<string, string> | null>(null);
+  const [isSavingPane, setIsSavingPane] = useState(false);
 
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
@@ -264,6 +266,42 @@ const App: React.FC = () => {
     finally { setIsCapturing(false); }
   };
 
+  const handleOpenEditPane = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEditingPane({
+          title: data.title || '',
+          workspace: data.workspace || '',
+          init_script: data.init_script || '',
+          proxy: data.proxy || '',
+        });
+      }
+    } catch (e) { console.error('Failed to load pane details:', e); }
+  };
+
+  const handleSavePane = async () => {
+    if (!editingPane) return;
+    setIsSavingPane(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingPane),
+      });
+      if (res.ok) {
+        setPaneTitle(editingPane.title || BOT_NAME);
+        setPaneWorkspace(editingPane.workspace || '');
+        document.title = editingPane.title || BOT_NAME;
+        setEditingPane(null);
+      }
+    } catch (e) { console.error('Failed to save pane:', e); }
+    finally { setIsSavingPane(false); }
+  };
+
   // --- Render ---
   if (isCheckingAuth) return (
     <div className="bg-black w-screen h-screen flex items-center justify-center">
@@ -301,6 +339,13 @@ const App: React.FC = () => {
         networkStatus={networkStatus}
         rightActions={
           <>
+            <button
+              onClick={handleOpenEditPane}
+              className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              title="Edit pane"
+            >
+              <Pencil size={14} />
+            </button>
             <button
               onClick={() => setSettings(prev => ({ ...prev, showPrompt: !prev.showPrompt }))}
               className={`p-1.5 rounded transition-colors ${settings.showPrompt ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
@@ -409,16 +454,63 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Edit pane dialog - full page */}
+      {editingPane && (
+        <div className="fixed inset-0 bg-black z-[9999] flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0">
+            <div>
+              <span className="text-sm font-semibold text-white">Edit Pane</span>
+              <span className="text-xs text-gray-500 font-mono ml-2">{BOT_NAME}</span>
+            </div>
+            <button onClick={() => setEditingPane(null)} className="p-1 rounded text-gray-400 hover:text-white"><X size={16} /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Title</label>
+              <input type="text" value={editingPane.title} onChange={e => setEditingPane({ ...editingPane, title: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500" placeholder="Pane title" autoFocus />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Workspace</label>
+              <input type="text" value={editingPane.workspace} onChange={e => setEditingPane({ ...editingPane, workspace: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500" placeholder="/home/user/project" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Init Script</label>
+              <textarea value={editingPane.init_script} onChange={e => setEditingPane({ ...editingPane, init_script: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500 resize-none" rows={6} placeholder="pwd&#10;# sleep:2&#10;# key:t" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">HTTP Proxy</label>
+              <input type="text" value={editingPane.proxy} onChange={e => setEditingPane({ ...editingPane, proxy: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500" placeholder="http://proxy:8080" />
+            </div>
+          </div>
+          <div className="flex gap-2 px-4 py-3 border-t border-gray-700 flex-shrink-0">
+            <div className="flex-1" />
+            <button onClick={() => setEditingPane(null)} className="px-4 py-2 bg-gray-800 text-gray-300 rounded text-sm hover:bg-gray-700">Cancel</button>
+            <button onClick={handleSavePane} disabled={isSavingPane} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 disabled:opacity-50">
+              {isSavingPane ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Capture output modal - full page */}
       {captureOutput !== null && (
-        <div className="fixed inset-0 z-[9999999] flex flex-col bg-black" onClick={() => setCaptureOutput(null)}>
-          <div className="flex items-center px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0 pointer-events-none">
+        <div className="fixed inset-0 z-[9999999] flex flex-col bg-black">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0">
             <span className="text-sm font-semibold text-white">Pane Output</span>
-            <span className="ml-auto text-xs text-gray-500 pointer-events-auto" onClick={() => setCaptureOutput(null)}>Click to close</span>
           </div>
-          <pre className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black">
+          <pre ref={el => { if (el) el.scrollTop = el.scrollHeight; }} className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black">
             {captureOutput || '(empty)'}
           </pre>
+          <div className="fixed right-4 flex gap-2 z-[99999999]" style={{ top: 44 }}>
+            <button onClick={handleCapturePane} disabled={isCapturing} className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs disabled:opacity-50">
+              {isCapturing ? 'Loading...' : 'Refresh'}
+            </button>
+            <button onClick={() => setCaptureOutput(null)} className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-xs">Close</button>
+          </div>
         </div>
       )}
 
