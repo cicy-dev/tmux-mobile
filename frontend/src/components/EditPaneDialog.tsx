@@ -40,11 +40,9 @@ export const EditPaneDialog: React.FC<EditPaneDialogProps> = ({
   const isFull = mode === 'full';
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black z-[9999] flex flex-col" onClick={onClose}>
       <div
-        className={`bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full mx-4 flex flex-col ${
-          isFull ? 'max-w-2xl max-h-[90vh]' : 'max-w-md'
-        }`}
+        className="bg-gray-900 w-full h-full flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 flex-shrink-0">
@@ -57,7 +55,7 @@ export const EditPaneDialog: React.FC<EditPaneDialogProps> = ({
           </button>
         </div>
 
-        <div className={`p-4 space-y-3 ${isFull ? 'overflow-y-auto flex-1' : ''}`}>
+        <div className="p-4 space-y-3 overflow-y-auto flex-1">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Title</label>
             <input

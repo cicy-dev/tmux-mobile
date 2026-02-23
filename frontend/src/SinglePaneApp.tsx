@@ -12,7 +12,7 @@ import { AppSettings, Position, Size } from './types';
 
 // Read URL query params
 const m = window.location.href.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
-const BOT_NAME = window.location.href.split("/")[4]
+const BOT_NAME = decodeURIComponent(window.location.href.split("/")[4])
 
 console.log({BOT_NAME})
 // const BOT_NAME = new URLSearchParams(window.location.search).get('bot_name') || '';

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
-import { Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square, RefreshCw } from 'lucide-react';
+import { Grid, Move, Users, X, Send, Clipboard, ExternalLink, Sparkles, Check, Minus, Square, RefreshCw, Pencil } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { TtydGroupDetail, CustomComponent } from '../types';
 import { TtydFrame } from './TtydFrame';
@@ -609,6 +609,28 @@ export const GroupCanvas: React.FC<Props> = ({
                       <Move size={11} className={activePane === layout.pane_id ? 'text-white' : 'text-gray-600'} />
                       <span className={`text-xs truncate ${activePane === layout.pane_id ? 'text-white font-medium' : 'text-gray-400'}`}>{title}</span>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const paneConfig = ttydConfigs[layout.pane_id];
+                        setEditingPane({
+                          target: layout.pane_id,
+                          title: paneTitles[layout.pane_id],
+                          workspace: paneConfig?.workspace,
+                          active: paneConfig?.active,
+                          init_script: paneConfig?.init_script,
+                          proxy: paneConfig?.proxy,
+                          tg_enable: paneConfig?.tg_enable,
+                          tg_token: paneConfig?.tg_token,
+                          tg_chat_id: paneConfig?.tg_chat_id,
+                          url: getTtydUrl(layout.pane_id, paneConfig?.token || ''),
+                        });
+                      }}
+                      className={`p-0.5 mr-1 rounded transition-colors ${activePane === layout.pane_id ? 'text-gray-300 hover:text-white' : 'text-gray-400 hover:text-white'}`}
+                      title="Edit pane"
+                    >
+                      <Pencil size={11} />
+                    </button>
                     {activePane === layout.pane_id && (
                     <>
                       <button
@@ -640,28 +662,6 @@ export const GroupCanvas: React.FC<Props> = ({
                         title="Reload"
                       >
                         <RefreshCw size={11} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const paneConfig = ttydConfigs[layout.pane_id];
-                          setEditingPane({
-                            target: layout.pane_id,
-                            title: paneTitles[layout.pane_id],
-                            workspace: paneConfig?.workspace,
-                            active: paneConfig?.active,
-                            init_script: paneConfig?.init_script,
-                            proxy: paneConfig?.proxy,
-                            tg_enable: paneConfig?.tg_enable,
-                            tg_token: paneConfig?.tg_token,
-                            tg_chat_id: paneConfig?.tg_chat_id,
-                            url: getTtydUrl(layout.pane_id, paneConfig?.token || ''),
-                          });
-                        }}
-                        className="mr-1"
-                        title="Edit pane"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); togglePaneMinimize(layout.pane_id); }}
