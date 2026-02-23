@@ -65,6 +65,7 @@ const App: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const voiceModeRef = useRef<'append' | 'direct'>('append');
   const recognitionRef = useRef<any>(null);
+  const voiceTranscriptRef = useRef<string>('');
   const commandPanelRef = useRef<CommandPanelHandle>(null);
   const iframeRef = useRef<TtydFrameHandle>(null);
 
@@ -182,8 +183,27 @@ const App: React.FC = () => {
   const handleLogin = (newToken: string) => setToken(newToken);
 
   // --- Voice ---
+  const voiceShouldSendRef = useRef(false);
+
+  const sendVoiceTranscript = async () => {
+    const text = voiceTranscriptRef.current.trim();
+    voiceTranscriptRef.current = '';
+    if (!text) return;
+    try {
+      await fetch(getApiUrl('/api/tmux'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, target: TMUX_TARGET })
+      });
+    } catch (e) {
+      console.error('Failed to send voice command:', e);
+    }
+  };
+
   const startVoiceRecording = async (mode: 'append' | 'direct') => {
     voiceModeRef.current = mode;
+    voiceTranscriptRef.current = '';
+    voiceShouldSendRef.current = false;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
@@ -196,14 +216,20 @@ const App: React.FC = () => {
       recognition.lang = 'zh-CN';
       recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript + ' ';
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
         }
-        // In direct mode, commands are sent from VoiceFloatingButton via onRecordEnd
+        voiceTranscriptRef.current = transcript;
       };
       recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
+      recognition.onend = () => {
+        setIsListening(false);
+        if (voiceShouldSendRef.current) {
+          voiceShouldSendRef.current = false;
+          sendVoiceTranscript();
+        }
+      };
       recognitionRef.current = recognition;
       recognition.start();
     } catch (e) {
@@ -212,7 +238,8 @@ const App: React.FC = () => {
     }
   };
 
-  const stopVoiceRecording = () => {
+  const stopVoiceRecording = (shouldSend: boolean) => {
+    voiceShouldSendRef.current = shouldSend;
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
@@ -454,7 +481,7 @@ const App: React.FC = () => {
           initialPosition={settings.voiceButtonPosition}
           onPositionChange={pos => setSettings(prev => ({ ...prev, voiceButtonPosition: pos }))}
           onRecordStart={() => startVoiceRecording('direct')}
-          onRecordEnd={() => stopVoiceRecording()}
+          onRecordEnd={(shouldSend) => stopVoiceRecording(shouldSend)}
           isRecordingExternal={isListening && voiceModeRef.current === 'direct'}
         />
         </div>
