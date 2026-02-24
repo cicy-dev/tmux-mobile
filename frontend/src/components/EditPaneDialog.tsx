@@ -40,7 +40,7 @@ export const EditPaneDialog: React.FC<EditPaneDialogProps> = ({
   const isFull = mode === 'full';
 
   return (
-    <div className="fixed inset-0 bg-black z-[9999] flex flex-col" onClick={onClose}>
+    <div className="fixed inset-0 bg-black z-[9999999] flex flex-col" onClick={onClose}>
       <div
         className="bg-gray-900 w-full h-full flex flex-col"
         onClick={e => e.stopPropagation()}

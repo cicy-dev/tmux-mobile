@@ -25,7 +25,7 @@ export const VoiceFloatingButton: React.FC<VoiceFloatingButtonProps> = ({
   const dragStartPos = useRef<Position>({ x: 0, y: 0 });
   const startPos = useRef<Position>({ x: 0, y: 0 });
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const DRAG_THRESHOLD = 15; // Slightly higher threshold to prevent accidental cancels
+  const DRAG_THRESHOLD = 30;
 
   useEffect(() => {
     setPosition(initialPosition);

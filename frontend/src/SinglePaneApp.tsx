@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   lastDraft: '',
   showPrompt: true,
   showVoiceControl: false,
-  voiceButtonPosition: { x: 40, y: 200 },
+  voiceButtonPosition: { x: 40, y: 36 },
   commandHistory: []
 };
 
@@ -64,7 +64,6 @@ const App: React.FC = () => {
 
   const [isListening, setIsListening] = useState(false);
   const voiceModeRef = useRef<'append' | 'direct'>('append');
-  const recognitionRef = useRef<any>(null);
   const voiceTranscriptRef = useRef<string>('');
   const commandPanelRef = useRef<CommandPanelHandle>(null);
   const iframeRef = useRef<TtydFrameHandle>(null);
@@ -200,49 +199,75 @@ const App: React.FC = () => {
     }
   };
 
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Pre-acquire mic permission when voice mode enabled
+  useEffect(() => {
+    if (settings.showVoiceControl) {
+      navigator.mediaDevices?.getUserMedia({ audio: true }).then(stream => {
+        mediaStreamRef.current = stream;
+        stream.getTracks().forEach(t => t.enabled = false);
+      }).catch(() => {});
+    }
+  }, [settings.showVoiceControl]);
+
   const startVoiceRecording = async (mode: 'append' | 'direct') => {
     voiceModeRef.current = mode;
     voiceTranscriptRef.current = '';
     voiceShouldSendRef.current = false;
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
     try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'zh-CN';
-      recognition.onstart = () => setIsListening(true);
-      recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        voiceTranscriptRef.current = transcript;
-      };
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => {
-        setIsListening(false);
-        if (voiceShouldSendRef.current) {
-          voiceShouldSendRef.current = false;
-          sendVoiceTranscript();
-        }
-      };
-      recognitionRef.current = recognition;
-      recognition.start();
+      let stream = mediaStreamRef.current;
+      if (!stream || stream.getTracks().every(t => t.readyState === 'ended')) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+      }
+      stream.getTracks().forEach(t => t.enabled = true);
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsListening(true);
+      setReadOnly(true);
     } catch (e) {
-      console.error('Failed to start speech recognition:', e);
+      console.error('Mic error:', e);
       setIsListening(false);
+      setReadOnly(false);
     }
   };
 
   const stopVoiceRecording = (shouldSend: boolean) => {
     voiceShouldSendRef.current = shouldSend;
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = async () => {
+        setIsListening(false);
+        mediaStreamRef.current?.getTracks().forEach(t => t.enabled = false);
+        try {
+          if (!voiceShouldSendRef.current) return;
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          if (blob.size < 100) return;
+          const fd = new FormData();
+          fd.append('file', blob, 'voice.webm');
+          fd.append('engine', 'google');
+          const r = await fetch('https://g-15003.cicy.de5.net/stt', { method: 'POST', body: fd });
+          const d = await r.json();
+          if (d.text) {
+            voiceTranscriptRef.current = d.text;
+            sendVoiceTranscript();
+          }
+        } catch (e) {
+          console.error('STT error:', e);
+        } finally {
+          setReadOnly(false);
+        }
+      };
+      recorder.stop();
+    } else {
+      setIsListening(false);
+      setReadOnly(false);
     }
   };
 
@@ -446,11 +471,12 @@ const App: React.FC = () => {
       </div>
       )}
 
-        {readOnly && (
+        {settings.showVoiceControl && (
           <div
-            className="fixed inset-0 z-10 pointer-events-auto cursor-text"
-            style={{zIndex:999998}}
-            onClick={() => { setToast('Click the panel to focus'); commandPanelRef.current?.focusTextarea(); }}
+            className="fixed z-10 pointer-events-auto"
+            style={{zIndex:999998, top:'32px', right:0, bottom:0, left:0, backgroundColor: isListening ? 'rgba(0,200,0,0.15)' : 'transparent'}}
+            onTouchStart={e => e.preventDefault()}
+            onClick={e => e.stopPropagation()}
           />
         )}
 
@@ -499,19 +525,19 @@ const App: React.FC = () => {
 
       {/* Capture output modal - full page */}
       {captureOutput !== null && (
-        <div className="fixed inset-0 z-[9999999] flex flex-col bg-black">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900 flex-shrink-0">
+        <div className="fixed z-[9999999] flex flex-col bg-black" style={{top:32,right:0,bottom:0,left:0}}>
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-900 flex-shrink-0" style={{height:32}}>
             <span className="text-sm font-semibold text-white">Pane Output</span>
+            <div className="flex gap-2">
+              <button onClick={handleCapturePane} disabled={isCapturing} className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs disabled:opacity-50">
+                {isCapturing ? '...' : 'Refresh'}
+              </button>
+              <button onClick={() => setCaptureOutput(null)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-xs">Close</button>
+            </div>
           </div>
           <pre ref={el => { if (el) el.scrollTop = el.scrollHeight; }} className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black">
             {captureOutput || '(empty)'}
           </pre>
-          <div className="fixed right-4 flex gap-2 z-[99999999]" style={{ top: 44 }}>
-            <button onClick={handleCapturePane} disabled={isCapturing} className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs disabled:opacity-50">
-              {isCapturing ? 'Loading...' : 'Refresh'}
-            </button>
-            <button onClick={() => setCaptureOutput(null)} className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-xs">Close</button>
-          </div>
         </div>
       )}
 
