@@ -13,6 +13,7 @@ interface FloatingPanelProps {
   onChange: (position: Position, size: Size) => void;
   onClose?: () => void;
   headerActions?: ReactNode;
+  onDraggingChange?: (isDragging: boolean) => void;
 }
 
 export const FloatingPanel: React.FC<FloatingPanelProps> = ({
@@ -25,7 +26,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   onInteractionEnd,
   onChange,
   onClose,
-  headerActions
+  headerActions,
+  onDraggingChange
 }) => {
   const [position, setPosition] = useState<Position>(initialPosition);
   const [size, setSize] = useState<Size>(initialSize);
@@ -66,6 +68,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     if (e.cancelable) e.preventDefault(); 
     
     setIsDragging(true);
+    onDraggingChange?.(true);
     onInteractionStart();
     const clientPos = getClientPos(e);
     dragStartPos.current = clientPos;
@@ -116,6 +119,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       if (isDragging || isResizing) {
         setIsDragging(false);
         setIsResizing(false);
+        onDraggingChange?.(false);
         onInteractionEnd();
       }
     };
@@ -190,7 +194,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
       {/* Resize Handle */}
       <div
-        className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize z-50 touch-none"
+        className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize z-50 touch-none"
         onMouseDown={handleStartResize}
         onTouchStart={handleStartResize}
       >

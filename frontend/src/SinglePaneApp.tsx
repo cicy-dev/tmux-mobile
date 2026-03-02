@@ -7,6 +7,10 @@ import { VoiceFloatingButton } from './components/VoiceFloatingButton';
 import { LoginForm } from './components/LoginForm';
 import { MultiTerminalView } from './components/MultiTerminalView';
 import { EditPaneDialog, EditPaneData } from './components/EditPaneDialog';
+import { SettingsView } from './components/SettingsView';
+import { AgentsView } from './components/AgentsView';
+import { AgentsListView } from './components/AgentsListView';
+import { CaptureDialog } from './components/CaptureDialog';
 import { sendShortcut } from './services/mockApi';
 import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
@@ -40,8 +44,7 @@ declare global {
 }
 
 const App: React.FC = () => {
-  const isInIframe = new URLSearchParams(window.location.search).get('iframe') === '1';
-  const IN_IFRAME = isInIframe; // global flag: true when iframe=1
+  const MODE = new URLSearchParams(window.location.search).get('mode') || null;
 
   const [showTopbar, setShowTopbar] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -51,6 +54,13 @@ const App: React.FC = () => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [paneTitle, setPaneTitle] = useState<string>('');
   const [paneWorkspace, setPaneWorkspace] = useState<string>('');
+  const [paneAgentDuty, setPaneAgentDuty] = useState<string>('');
+  const [paneInitScript, setPaneInitScript] = useState<string>('');
+  const [paneConfig, setPaneConfig] = useState<string>('');
+  const [paneTgToken, setPaneTgToken] = useState<string>('');
+  const [paneTgChatId, setPaneTgChatId] = useState<string>('');
+  const [paneTgEnable, setPaneTgEnable] = useState<boolean>(false);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [readOnly, setReadOnly] = useState(true);
   const [isRestarting, setIsRestarting] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -58,6 +68,31 @@ const App: React.FC = () => {
   const [agentStatus, setAgentStatus] = useState('idle');
   const [contextUsage, setContextUsage] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [ttydWidth, setTtydWidth] = useState(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_ttydWidth`);
+    return saved ? parseInt(saved) : 640;
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCodeServerLoading, setIsCodeServerLoading] = useState(true);
+  const [isTtydLoading, setIsTtydLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'Agents' | 'Settings'>(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_activeTab`);
+    return (saved as any) || 'Services';
+  });
+  const [servicesTab, setServicesTab] = useState<'Electron' | 'Mysql' | 'Monitor' | 'VNC'>(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_servicesTab`);
+    return (saved as any) || 'Electron';
+  });
+  const [docsTab, setDocsTab] = useState<'Fast-api' | 'Electron'>(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_docsTab`);
+    return (saved as any) || 'Fast-api';
+  });
+  const [previewTab, setPreviewTab] = useState<number>(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_previewTab`);
+    return saved ? parseInt(saved) : 0;
+  });
+  const [boundAgents, setBoundAgents] = useState<string[]>([]);
+  const [agentCaptureOpen, setAgentCaptureOpen] = useState(false);
 
   const [isInteracting, setIsInteracting] = useState(false);
   const [multiTerminalMode, setMultiTerminalMode] = useState(false);
@@ -114,15 +149,45 @@ const App: React.FC = () => {
         }
 
         try {
-          const res = await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
-            headers: { 'Authorization': `Bearer ${urlToken}`, 'Accept': 'application/json' }
+          const paneIdToLoad = BOT_NAME.includes(':') ? BOT_NAME : `${BOT_NAME}:main.0`;
+          const res = await fetch(`${API_BASE}/api/ttyd/config/${encodeURIComponent(paneIdToLoad)}`, {
+            headers: { 'Accept': 'application/json' }
           });
           if (res.ok) {
             const data = await res.json();
             const title = data.title || BOT_NAME;
             setPaneTitle(title);
             setPaneWorkspace(data.workspace || '');
+            setPaneAgentDuty(data.agent_duty || '');
+            setPaneInitScript(data.init_script || '');
+            setPaneTgToken(data.tg_token || '');
+            setPaneTgChatId(data.tg_chat_id || '');
+            setPaneTgEnable(data.tg_enable || false);
+            
+            // Parse config JSON
+            let config: any = {};
+            try {
+              config = data.config ? JSON.parse(data.config) : {};
+            } catch (e) {
+              console.error('Failed to parse config:', e);
+            }
+            setPaneConfig(data.config || '{}');
+            setPreviewUrls(config.previewUrls || []);
+            
             document.title = title;
+            
+            // Fetch bound agents
+            try {
+              const agentsRes = await fetch(`${API_BASE}/api/agents/pane/${encodeURIComponent(BOT_NAME)}`, {
+                headers: { 'Authorization': `Bearer ${urlToken}` }
+              });
+              if (agentsRes.ok) {
+                const agents = await agentsRes.json();
+                setBoundAgents(agents.map((a: any) => a.name));
+              }
+            } catch (e) {
+              console.error('Failed to fetch agents', e);
+            }
           } else {
             setPaneTitle(BOT_NAME);
             document.title = BOT_NAME;
@@ -187,6 +252,27 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isLoaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings, isLoaded]);
+
+  // Reload config when switching to Preview tab
+  useEffect(() => {
+    if (activeTab === 'Preview' && token) {
+      fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.config) {
+            try {
+              const config = JSON.parse(data.config);
+              setPreviewUrls(config.previewUrls || []);
+            } catch (e) {
+              console.error('Failed to parse config:', e);
+            }
+          }
+        })
+        .catch(err => console.error('Failed to reload config:', err));
+    }
+  }, [activeTab, token]);
 
   // --- Agent status polling ---
   useEffect(() => {
@@ -322,35 +408,7 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Event forwarding ---
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!settings.showPrompt && !settings.showVoiceControl) return;
-    if (!settings.forwardEvents) return;
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-    
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      sendShortcut('escape', TMUX_TARGET);
-      return;
-    }
-    
-    const mod = e.ctrlKey || e.metaKey;
-    if (mod && ['c', 'v', 'a', 'z'].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-      e.stopPropagation();
-      sendShortcut(`ctrl+${e.key.toLowerCase()}`);
-    }
-  }, [settings.forwardEvents, settings.showPrompt, settings.showVoiceControl]);
-
-
-
-  // useEffect(() => {
-  //   window.addEventListener('keydown', handleKeyDown);
-  //   return () => window.removeEventListener('keydown', handleKeyDown);
-  // }, [handleKeyDown]);
-
+  
   const handlePanelChange = (pos: Position, size: Size) => {
     setSettings(prev => ({ ...prev, panelPosition: pos, panelSize: size }));
   };
@@ -372,42 +430,64 @@ const App: React.FC = () => {
     finally { setIsCapturing(false); }
   };
 
-  const handleOpenEditPane = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setEditingPane({
-          target: BOT_NAME,
-          title: data.title || '',
-          workspace: data.workspace || '',
-          active: data.active,
-          init_script: data.init_script || '',
-          proxy: data.proxy || '',
-          tg_enable: data.tg_enable,
-          tg_token: data.tg_token || '',
-          tg_chat_id: data.tg_chat_id || '',
-        });
-      }
-    } catch (e) { console.error('Failed to load pane details:', e); }
-  };
+  const [tempPaneData, setTempPaneData] = useState<EditPaneData | null>(null);
 
   const handleSavePane = async () => {
-    if (!editingPane) return;
+    const dataToSave = tempPaneData || {
+      target: TMUX_TARGET, 
+      title: paneTitle, 
+      workspace: paneWorkspace, 
+      agent_duty: paneAgentDuty, 
+      init_script: paneInitScript,
+      config: paneConfig,
+      tg_token: paneTgToken,
+      tg_chat_id: paneTgChatId,
+      tg_enable: paneTgEnable
+    };
+    
+    // Validate and set default config
+    let configToSave = dataToSave.config?.trim() || '';
+    if (!configToSave) {
+      configToSave = '{"previewUrls": []}';
+    } else {
+      try {
+        JSON.parse(configToSave);
+      } catch (e) {
+        alert('Invalid JSON in Config field. Please fix the syntax.');
+        return;
+      }
+    }
+    dataToSave.config = configToSave;
+    
     setIsSavingPane(true);
     try {
-      const res = await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}`, {
+      // Add :main.0 suffix if not present
+      const paneIdToSave = BOT_NAME.includes(':') ? BOT_NAME : `${BOT_NAME}:main.0`;
+      const res = await fetch(`${API_BASE}/api/ttyd/config/${encodeURIComponent(paneIdToSave)}`, {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingPane),
+        body: JSON.stringify(dataToSave),
       });
       if (res.ok) {
-        setPaneTitle(editingPane.title || BOT_NAME);
-        setPaneWorkspace(editingPane.workspace || '');
-        document.title = editingPane.title || BOT_NAME;
-        setEditingPane(null);
+        setPaneTitle(dataToSave.title || BOT_NAME);
+        setPaneWorkspace(dataToSave.workspace || '');
+        setPaneAgentDuty(dataToSave.agent_duty || '');
+        setPaneInitScript(dataToSave.init_script || '');
+        setPaneConfig(configToSave);
+        setPaneTgToken(dataToSave.tg_token || '');
+        setPaneTgChatId(dataToSave.tg_chat_id || '');
+        setPaneTgEnable(dataToSave.tg_enable || false);
+        
+        // Update previewUrls from saved config
+        try {
+          const config = JSON.parse(configToSave);
+          setPreviewUrls(config.previewUrls || []);
+        } catch (e) {
+          console.error('Failed to parse config:', e);
+        }
+        
+        document.title = dataToSave.title || BOT_NAME;
+        setTempPaneData(null);
       }
     } catch (e) { console.error('Failed to save pane:', e); }
     finally { setIsSavingPane(false); }
@@ -424,38 +504,214 @@ const App: React.FC = () => {
 
   if (!isLoaded) return <div className="bg-black w-screen h-screen" />;
 
-  if (multiTerminalMode) return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden font-sans">
-      <MultiTerminalView
-        initialBotName={BOT_NAME}
-        token={token}
-        isInteracting={isInteracting}
-        onInteractionStart={() => setIsInteracting(true)}
-        onInteractionEnd={() => setIsInteracting(false)}
-        onClose={() => setMultiTerminalMode(false)}
-      />
-    </div>
-  );
 
   return (
     <div className="relative w-screen h-screen overflow-hidden font-sans" >
-      {/* 右上角菜单按钮 */}
-      {!isInIframe && !showTopbar && (
-        <button
-          onClick={() => setShowTopbar(v => !v)}
-          style={{position:'fixed',top:6,right:6,zIndex:111111112,width:28,height:28,borderRadius:6,background:'rgba(30,41,59,0.7)',border:'1px solid rgba(71,85,105,0.5)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#94a3b8',backdropFilter:'blur(4px)'}}
-          onMouseEnter={e=>(e.currentTarget.style.background='rgba(51,65,85,0.9)')}
-          onMouseLeave={e=>(e.currentTarget.style.background='rgba(30,41,59,0.7)')}
-          title="Show toolbar"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-        </button>
-      )}
+      {
+        MODE === "ttyd" && <div id="mainIfame" className="fixed inset-0"> 
+
+        <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px)`}}>
+          <div className="absolute top-0 left-0 right-0 h-10 bg-gray-800 flex items-center gap-1 px-2 z-10">
+            {(['Services', 'Settings', 'Code', 'Docs', 'Preview', 'Agents'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => {
+                  setActiveTab(tab);
+                  localStorage.setItem(`${BOT_NAME}_activeTab`, tab);
+                }}
+                className={`px-4 py-1 rounded text-sm ${activeTab === tab ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          {isCodeServerLoading && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
+          {isInteracting && <div className="absolute inset-0 z-20"></div>}
+          {paneWorkspace && (
+            <iframe onLoad={() => setIsCodeServerLoading(false)} src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Code' ? 'block' : 'none'}}></iframe>
+          )}
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-electron-mcp-ui.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Electron' ? 'block' : 'none'}}></iframe>
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-12222.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Mysql' ? 'block' : 'none'}}></iframe>
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-18888.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Monitor' ? 'block' : 'none'}}></iframe>
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-vnc.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'VNC' ? 'block' : 'none'}}></iframe>
+          {activeTab === 'Services' && (
+            <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
+              {(['Electron', 'Mysql', 'Monitor', 'VNC'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setServicesTab(tab);
+                    localStorage.setItem(`${BOT_NAME}_servicesTab`, tab);
+                  }}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '13px',
+                    background: servicesTab === tab ? '#374151' : 'transparent',
+                    color: servicesTab === tab ? '#fff' : '#9ca3af',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          )}
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-fast-api.cicy.de5.net/docs" className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Docs' && docsTab === 'Fast-api' ? 'block' : 'none'}}></iframe>
+          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-electron.cicy.de5.net/docs" className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Docs' && docsTab === 'Electron' ? 'block' : 'none'}}></iframe>
+          {activeTab === 'Docs' && (
+            <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
+              {(['Fast-api', 'Electron'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setDocsTab(tab);
+                    localStorage.setItem(`${BOT_NAME}_docsTab`, tab);
+                  }}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '13px',
+                    background: docsTab === tab ? '#374151' : 'transparent',
+                    color: docsTab === tab ? '#fff' : '#9ca3af',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          )}
+          {activeTab === 'Preview' && (
+            <>
+              {previewUrls.length === 0 ? (
+                <div className="flex items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
+                  <p className="text-gray-500 text-lg">No preview URLs configured</p>
+                </div>
+              ) : (
+                <>
+                  <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
+                    {previewUrls.map((item: any, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setPreviewTab(idx);
+                          localStorage.setItem(`${BOT_NAME}_previewTab`, idx.toString());
+                        }}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: '13px',
+                          background: previewTab === idx ? '#374151' : 'transparent',
+                          color: previewTab === idx ? '#fff' : '#9ca3af',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {item.name || `URL ${idx + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                  {previewUrls.map((item: any, idx) => (
+                    <iframe
+                      key={idx}
+                      onLoad={() => setIsCodeServerLoading(false)}
+                      src={item.url || item}
+                      className="w-full h-full"
+                      style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+          {activeTab === 'Agents' && (
+            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
+              <AgentsListView paneId={BOT_NAME} token={token} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
+            </div>
+          )}
+          {activeTab === 'Settings' && (
+            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
+              <SettingsView 
+                pane={{
+                  target: TMUX_TARGET, 
+                  title: paneTitle, 
+                  workspace: paneWorkspace, 
+                  agent_duty: paneAgentDuty, 
+                  init_script: paneInitScript,
+                  config: paneConfig,
+                  tg_token: paneTgToken,
+                  tg_chat_id: paneTgChatId,
+                  tg_enable: paneTgEnable
+                }}
+                onChange={(pane) => {
+                  setPaneTitle(pane.title);
+                  setPaneWorkspace(pane.workspace || '');
+                  setPaneAgentDuty(pane.agent_duty || '');
+                  setPaneInitScript(pane.init_script || '');
+                  setPaneConfig(pane.config || '{}');
+                  setPaneTgToken(pane.tg_token || '');
+                  setPaneTgChatId(pane.tg_chat_id || '');
+                  setPaneTgEnable(pane.tg_enable || false);
+                  
+                  // Update previewUrls from config
+                  try {
+                    const config = JSON.parse(pane.config || '{}');
+                    setPreviewUrls(config.previewUrls || []);
+                  } catch (e) {
+                    console.error('Failed to parse config:', e);
+                  }
+                  
+                  setTempPaneData(pane);
+                }}
+                onSave={handleSavePane}
+                isSaving={isSavingPane}
+              />
+            </div>
+          )}
+          {isDragging && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 z-20"></div>}
+        </div>
+        <div id="drag" 
+          className="absolute inset-y-0 w-1 bg-gray-600 hover:bg-blue-500 cursor-col-resize z-10"
+          style={{left: `calc(100vw - ${ttydWidth}px)`}}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+            const startX = e.clientX;
+            const startWidth = ttydWidth;
+            let currentWidth = startWidth;
+            const onMouseMove = (e: MouseEvent) => {
+              const newWidth = Math.max(200, Math.min(window.innerWidth - 200, startWidth - (e.clientX - startX)));
+              currentWidth = newWidth;
+              setTtydWidth(newWidth);
+            };
+            const onMouseUp = () => {
+              setIsDragging(false);
+              localStorage.setItem(`${BOT_NAME}_ttydWidth`, currentWidth.toString());
+              document.removeEventListener('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+            };
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          }}
+        ></div>
+        <div id="mainTtyd" className="absolute inset-0" style={{width: `${ttydWidth}px`, left: `calc(100vw - ${ttydWidth}px)`}}>
+          {isTtydLoading && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
+          <iframe onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
+          {isDragging && <div className="absolute inset-0 z-20"></div>}
+          {isInteracting && <div className="absolute inset-0 z-20"></div>}
+        </div>
+
+      </div>
+      }
+      
       {/* Title bar — hidden by default, click menu btn to show */}
-      {!isInIframe && (
+      {!captureOutput && !agentCaptureOpen && !editingPane && (
       <div
         className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 transition-transform duration-200 rounded-lg"
-        style={{position:"fixed",zIndex:30,top:8,right:8,width:90,height:32,transform:(showTopbar)?'translateY(0)':'translateY(-100%)'}}
+        style={{position:"fixed",zIndex:99999998,top:8,right:8,width:90,height:32}}
       >
         <div className="h-full flex items-center justify-center px-3 gap-1">
           {hasPermission('prompt') && (
@@ -497,7 +753,7 @@ const App: React.FC = () => {
 
 
       {/* Floating command panel */}
-      {settings.showPrompt && hasPermission('prompt') && !IN_IFRAME && (
+      {settings.showPrompt && hasPermission('prompt') && (
         <CommandPanel
           ref={commandPanelRef}
           paneTarget={TMUX_TARGET}
@@ -516,10 +772,11 @@ const App: React.FC = () => {
           agentStatus={agentStatus}
           contextUsage={contextUsage}
           mouseMode={mouseMode}
+          onDraggingChange={setIsDragging}
           isTogglingMouse={isTogglingMouse}
           onToggleMouse={handleToggleMouse}
-          onEditPane={handleOpenEditPane}
           onReload={() => location.reload()}
+          boundAgents={boundAgents}
           onRestart={async () => {
             if (!confirm('Restart tmux and ttyd?')) return;
             setIsRestarting(true);
@@ -576,36 +833,13 @@ const App: React.FC = () => {
       />
 
       {/* Capture output modal - full page */}
-      {captureOutput !== null && (
-        <div className="fixed z-[9999999] flex flex-col bg-black" style={{top:0,right:0,bottom:0,left:0,zIndex:999999999}}>
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-900 flex-shrink-0" style={{height:32}}>
-            <span className="text-sm font-semibold text-white">Pane Output</span>
-            <div className="flex gap-2">
-              <button onClick={handleCapturePane} disabled={isCapturing} className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs disabled:opacity-50">
-                {isCapturing ? '...' : 'Refresh'}
-              </button>
-              <button 
-                onClick={() => {
-                  const blob = new Blob([captureOutput || ''], { type: 'text/plain' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${BOT_NAME}_capture_${Date.now()}.txt`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white text-xs"
-              >
-                Export
-              </button>
-              <button onClick={() => setCaptureOutput(null)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-xs">Close</button>
-            </div>
-          </div>
-          <pre ref={el => { if (el) el.scrollTop = el.scrollHeight; }} className="flex-1 overflow-auto p-4 text-xs text-green-400 font-mono whitespace-pre-wrap break-all bg-black">
-            {captureOutput || '(empty)'}
-          </pre>
-        </div>
-      )}
+      <CaptureDialog 
+        output={captureOutput}
+        onClose={() => setCaptureOutput(null)}
+        onRefresh={handleCapturePane}
+        isRefreshing={isCapturing}
+        paneId={BOT_NAME}
+      />
 
 
 

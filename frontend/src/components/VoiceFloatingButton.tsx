@@ -124,7 +124,7 @@ export const VoiceFloatingButton: React.FC<VoiceFloatingButtonProps> = ({
 
   return (
     <div
-      className="fixed z-[60] touch-none select-none"
+      className="fixed z-[50] touch-none select-none"
       style={{
         left: position.x,
         top: position.y,

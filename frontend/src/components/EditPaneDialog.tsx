@@ -16,6 +16,7 @@ export interface EditPaneData {
   private_mode?: boolean;
   allowed_users?: string;
   proxy_enable?: boolean;
+  config?: string;
 }
 
 interface EditPaneDialogProps {

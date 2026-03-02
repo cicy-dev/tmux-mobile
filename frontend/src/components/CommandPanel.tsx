@@ -1,6 +1,7 @@
 import React, { useEffect ,useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Loader2, CheckCircle, Sparkles, History, X, Check, Clipboard, Keyboard, Mouse, SplitSquareHorizontal, SplitSquareVertical, XSquare, Pencil, RotateCcw, Power, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, CheckCircle, Sparkles, History, X, Check, Clipboard, Keyboard, Mouse, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Wifi, WifiOff } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
+import { TerminalControls } from './TerminalControls';
 import { Position, Size } from '../types';
 import { sendCommandToTmux } from '../services/mockApi';
 import { getApiUrl } from '../services/apiUrl';
@@ -33,6 +34,9 @@ interface CommandPanelProps {
   hasCapturePermission?: boolean;
   networkLatency?: number | null;
   networkStatus?: 'excellent' | 'good' | 'poor' | 'offline';
+  onDraggingChange?: (isDragging: boolean) => void;
+  boundAgents?: string[];
+  onPaneTargetChange?: (target: string) => void;
 }
 
 export interface CommandPanelHandle {
@@ -68,13 +72,17 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   hasCapturePermission = false,
   networkLatency = null,
   networkStatus = 'good',
+  onDraggingChange,
+  boundAgents = [],
+  onPaneTargetChange,
 }, ref) => {
+  const [selectedPane, setSelectedPane] = useState(paneTarget);
   const [promptText, setPromptText] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tempDraft, setTempDraft] = useState('');
 
-  const tempPaneId = paneTarget.replace(/[^a-zA-Z0-9]/g, '_');
+  const tempPaneId = selectedPane.replace(/[^a-zA-Z0-9]/g, '_');
 
   const CMD_HISTORY_KEY = `cmd_history_${tempPaneId}`;
 
@@ -138,7 +146,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     setIsSending(true);
     setSendSuccess(false);
     try {
-      await sendCommandToTmux(cmd, paneTarget);
+      await sendCommandToTmux(cmd, selectedPane);
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
     } catch (e) { console.error(e); }
@@ -192,7 +200,21 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   return (
     <>
       <FloatingPanel
-        title={title}
+        title={
+          boundAgents.length > 0 ? (
+            <select 
+              value={selectedPane} 
+              onChange={(e) => setSelectedPane(e.target.value)}
+              className="bg-transparent text-white text-xs border-none outline-none cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <option value={paneTarget}>{title} (Master)</option>
+              {boundAgents.map(agent => (
+                <option key={agent} value={agent}>{agent.replace(':main.0', '')}</option>
+              ))}
+            </select>
+          ) : title
+        }
         initialPosition={panelPosition}
         initialSize={panelSize}
       minSize={{ width: 360, height: 180 }}
@@ -203,6 +225,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
         setCurrentSize(size);
         onChange(pos, size);
       }}
+      onDraggingChange={onDraggingChange}
       headerActions={
         <>
           <div
@@ -255,10 +278,10 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                       "right": "Right",
                       "space": "Space",
                   }
-                  await fetch(getApiUrl('/api/tmux/send-keys'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: paneTarget, keys: key_map[e.key.toLowerCase()] }) });
+                  await fetch(getApiUrl('/api/tmux/send-keys'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: key_map[e.key.toLowerCase()] }) });
                 } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !promptText) {
                   e.preventDefault();
-                  await fetch(getApiUrl('/api/tmux/send-keys'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: paneTarget, keys: "C-c" }) });
+                  await fetch(getApiUrl('/api/tmux/send-keys'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: "C-c" }) });
                 } else  if (e.key === 'Enter' && e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   handleSendPrompt();
@@ -309,7 +332,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                 <button key={b.key} type="button" onClick={async () => {
                   const keyMap: Record<string, string> = { 'Left': 'Left', 'Down': 'Down', 'Up': 'Up', 'Right': 'Right', 'Enter': 'Enter', 'escape': 'Escape', 'ctrl+c': 'C-c' };
                   const k = keyMap[b.key] || b.key;
-                  await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: paneTarget, keys: k }) });
+                  await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: k }) });
                 }}
                   className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors shadow flex items-center justify-center"
                 >{b.label}</button>
@@ -349,7 +372,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                   const v = e.target.value;
                   if (!v) return;
                   e.target.value = '';
-                  await sendCommandToTmux(v, paneTarget);
+                  await sendCommandToTmux(v, selectedPane);
                 }}
               >
                 <option value="">⚡</option>
@@ -374,36 +397,13 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
 
           {/* Bottom action buttons */}
           <div className="flex items-center justify-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
-            {onToggleMouse && (
-              <button
-                type="button"
-                onClick={onToggleMouse}
-                disabled={isTogglingMouse}
-                className={`p-1.5 rounded transition-colors ${mouseMode === 'on' ? 'text-green-400 bg-green-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                title={mouseMode === 'on' ? "鼠标: 开 (可滚动)" : "鼠标: 关 (可复制)"}
-              >
-                {isTogglingMouse ? <Loader2 size={14} className="animate-spin" /> : <Mouse size={14} />}
-              </button>
-            )}
-            {hasCapturePermission && onCapturePane && (
-              <button
-                onClick={onCapturePane}
-                disabled={isCapturing}
-                className="p-1.5 rounded text-yellow-400 hover:text-yellow-300 hover:bg-gray-700 disabled:opacity-40"
-                title="Capture pane output"
-              >
-                {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Clipboard size={14} />}
-              </button>
-            )}
-            {hasEditPermission && onEditPane && (
-              <button
-                onClick={onEditPane}
-                className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-                title="Edit pane"
-              >
-                <Pencil size={14} />
-              </button>
-            )}
+            <TerminalControls
+              mouseMode={mouseMode}
+              onToggleMouse={onToggleMouse}
+              isTogglingMouse={isTogglingMouse}
+              onCapture={hasCapturePermission ? onCapturePane : undefined}
+              isCapturing={isCapturing}
+            />
             <button
               onClick={handleCorrectEnglish}
               disabled={!promptText.trim() || isCorrectingEnglish}
@@ -447,7 +447,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     </FloatingPanel>
 {correctedText && (
   <div 
-    className="fixed z-[999999] animate-in fade-in zoom-in duration-200"
+    className="fixed z-[50] animate-in fade-in zoom-in duration-200"
     style={{ 
       right: 40,
       top: 40, // 增加一点间距
@@ -507,7 +507,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     {/* 历史记录面板 */}
     {showHistory && commandHistory.length > 0 && (
       <div 
-        className="fixed bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl backdrop-blur-sm z-[999999] flex flex-col max-h-80"
+        className="fixed bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl backdrop-blur-sm z-[50] flex flex-col max-h-80"
         style={{ 
       right: 40,
       top: 40, // 增加一点间距
@@ -557,7 +557,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     {/* 队列显示面板 */}
     {queueLen > 0 && (
       <div 
-        className="fixed bg-gray-900/95 border border-orange-500/50 rounded-lg p-2 shadow-xl backdrop-blur-sm z-[999999]"
+        className="fixed bg-gray-900/95 border border-orange-500/50 rounded-lg p-2 shadow-xl backdrop-blur-sm z-[50]"
         style={{ 
           left: currentPos.x,
           top: currentPos.y + currentSize.height + 8,
