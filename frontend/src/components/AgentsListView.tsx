@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Plus, Trash2, RotateCw, ExternalLink, Power } from 'lucide-react';
+import { Loader2, Plus, Trash2, RotateCw, ExternalLink } from 'lucide-react';
 import { API_BASE, getApiUrl } from '../services/apiUrl';
-import { CaptureDialog } from './CaptureDialog';
-import { TerminalControls } from './TerminalControls';
 
 interface Agent {
   id: number;
@@ -33,13 +31,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
   const [resizing, setResizing] = useState<string | null>(null);
   const [startHeight, setStartHeight] = useState<number>(0);
   const [startY, setStartY] = useState<number>(0);
-  const [mouseModes, setMouseModes] = useState<Record<string, 'on' | 'off'>>(() => {
-    const saved = localStorage.getItem(`${paneId}_agentMouseModes`);
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [captureOutput, setCaptureOutput] = useState<string | null>(null);
-  const [capturingAgent, setCapturingAgent] = useState<string | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
 
   useEffect(() => {
     fetchAllAgents();
@@ -131,47 +122,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
     setIframeKeys(prev => ({ ...prev, [agentName]: (prev[agentName] || 0) + 1 }));
   };
 
-  const toggleMouseMode = async (agentName: string) => {
-    const currentMode = mouseModes[agentName] || 'off';
-    const newMode = currentMode === 'off' ? 'on' : 'off';
-    try {
-      const res = await fetch(`${API_BASE}/api/tmux/mouse/${newMode}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
-      if (res.ok) {
-        const newModes = { ...mouseModes, [agentName]: newMode };
-        setMouseModes(newModes);
-        localStorage.setItem(`${paneId}_agentMouseModes`, JSON.stringify(newModes));
-      }
-    } catch (err) {
-      console.error('Failed to toggle mouse mode:', err);
-    }
-  };
-
-  const capturePane = async (agentName: string) => {
-    setCapturingAgent(agentName);
-    setIsCapturing(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/tmux/capture_pane`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pane_id: agentName, start: -200 })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCaptureOutput(data.output || '');
-        onCaptureOpen?.(true);
-      } else {
-        alert(`Error: ${data.detail || 'Unknown'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Failed');
-    } finally {
-      setIsCapturing(false);
-    }
-  };
 
   const handleMouseDown = (agentName: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -297,12 +247,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
                 <span className="text-white text-sm font-medium px-2 py-1">
                   {agent.title || agent.name.replace(':main.0', '')}
                 </span>
-                <TerminalControls
-                  mouseMode={mouseModes[agent.name] || 'off'}
-                  onToggleMouse={() => toggleMouseMode(agent.name)}
-                  onCapture={() => capturePane(agent.name)}
-                  isCapturing={capturingAgent === agent.name}
-                />
                 <button
                   onClick={() => window.open(`https://ttyd-dev.cicy.de5.net/ttyd/${agent.name}/?token=${token}&mode=ttyd`, '_blank')}
                   className="text-green-400 hover:text-green-300 bg-gray-900/80 p-1 rounded"
@@ -314,24 +258,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
                   className="text-blue-400 hover:text-blue-300 bg-gray-900/80 p-1 rounded"
                 >
                   <RotateCw size={14} />
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Restart ${agent.name}?`)) return;
-                    try {
-                      await fetch(`${API_BASE}/api/tmux/panes/${agent.name}/restart`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      });
-                      setTimeout(() => handleReloadIframe(agent.name), 2000);
-                    } catch (err) {
-                      console.error(err);
-                      alert('Restart failed');
-                    }
-                  }}
-                  className="text-orange-400 hover:text-orange-300 bg-gray-900/80 p-1 rounded"
-                >
-                  <Power size={14} />
                 </button>
                 <button
                   onClick={() => handleRemoveAgent(agent.id)}
@@ -357,18 +283,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
           ))}
         </div>
       )}
-
-      <CaptureDialog 
-        output={captureOutput}
-        onClose={() => {
-          setCaptureOutput(null);
-          setCapturingAgent(null);
-          onCaptureOpen?.(false);
-        }}
-        onRefresh={capturingAgent ? () => capturePane(capturingAgent) : undefined}
-        isRefreshing={isCapturing}
-        paneId={capturingAgent || undefined}
-      />
     </div>
   );
 };

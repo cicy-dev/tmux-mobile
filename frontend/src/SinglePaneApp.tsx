@@ -31,7 +31,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showPrompt: true,
   showVoiceControl: false,
   voiceButtonPosition: { x: 40, y: 36 },
-  commandHistory: []
+  commandHistory: [],
+  agent_duty: ''
 };
 
 const STORAGE_KEY = `ttyd_app_settings_v1_${BOT_NAME}`;
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [paneTitle, setPaneTitle] = useState<string>('');
   const [paneWorkspace, setPaneWorkspace] = useState<string>('');
   const [paneAgentDuty, setPaneAgentDuty] = useState<string>('');
+  const [paneAgentType, setPaneAgentType] = useState<string>('');
   const [paneInitScript, setPaneInitScript] = useState<string>('');
   const [paneConfig, setPaneConfig] = useState<string>('');
   const [paneTgToken, setPaneTgToken] = useState<string>('');
@@ -109,6 +111,7 @@ const App: React.FC = () => {
   const voiceTranscriptRef = useRef<string>('');
   const commandPanelRef = useRef<CommandPanelHandle>(null);
   const iframeRef = useRef<TtydFrameHandle>(null);
+  const mainIframeRef = useRef<HTMLIFrameElement>(null);
 
   const iframeUrl = `${TTYD_BASE}/ttyd/${BOT_NAME}/?token=${token || ''}`;
   const [mouseMode, setMouseMode] = useState<'on' | 'off'>('off');
@@ -160,6 +163,7 @@ const App: React.FC = () => {
             setPaneTitle(title);
             setPaneWorkspace(data.workspace || '');
             setPaneAgentDuty(data.agent_duty || '');
+            setPaneAgentType(data.agent_type || '');
             setPaneInitScript(data.init_script || '');
             setPaneTgToken(data.tg_token || '');
             setPaneTgChatId(data.tg_chat_id || '');
@@ -281,7 +285,7 @@ const App: React.FC = () => {
     if (!token) return;
     const poll = () => fetch(`${API_BASE}/api/tmux/pane/agent/status/${encodeURIComponent(BOT_NAME)}`, {
       headers: { 'Authorization': `Bearer ${token}` }
-    }).then(r => r.json()).then(d => { console.log(`[agent-status] ${d.status} | ${d.raw}`); setAgentStatus(d.status); if (d.contextUsage != null) setContextUsage(d.contextUsage); }).catch(() => {});
+    }).then(r => r.json()).then(d => { console.debug(`[agent-status] ${d.status} | ${d.raw}`, d); setAgentStatus(d.status); if (d.contextUsage != null) setContextUsage(d.contextUsage); }).catch(() => {});
     poll();
     const id = setInterval(poll, 1000);
     return () => clearInterval(id);
@@ -415,14 +419,14 @@ const App: React.FC = () => {
     setSettings(prev => ({ ...prev, panelPosition: pos, panelSize: size }));
   };
 
-  const handleCapturePane = async () => {
+  const handleCapturePane = async (pane_id?: string) => {
     if (isCapturing) return;
     setIsCapturing(true);
     try {
       const res = await fetch(`${API_BASE}/api/tmux/capture_pane`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ pane_id: BOT_NAME, start: -200 })
+        body: JSON.stringify({ pane_id: pane_id || TMUX_TARGET, start: -200 })
       });
       if (res.ok) {
         const data = await res.json();
@@ -430,6 +434,39 @@ const App: React.FC = () => {
       }
     } catch (e) { console.error(e); }
     finally { setIsCapturing(false); }
+  };
+
+  const handleRestart = async (pane_id?: string) => {
+    const targetPane = pane_id || BOT_NAME;
+    if (!confirm(`Restart tmux and ttyd for ${targetPane}?`)) return;
+    setIsRestarting(true);
+    try {
+      await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(targetPane)}/restart`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const res = await fetch(`${API_BASE}/api/ttyd/status/${encodeURIComponent(targetPane)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'running') {
+              setTimeout(() => location.reload(), 500);
+              return;
+            }
+          }
+        } catch {}
+      }
+      alert('Restart timeout');
+    } catch (e) {
+      console.error(e);
+      alert('Restart failed');
+    } finally {
+      setIsRestarting(false);
+    }
   };
 
   const [tempPaneData, setTempPaneData] = useState<EditPaneData | null>(null);
@@ -440,6 +477,7 @@ const App: React.FC = () => {
       title: tempPaneData?.title ?? paneTitle, 
       workspace: tempPaneData?.workspace ?? paneWorkspace, 
       agent_duty: tempPaneData?.agent_duty ?? paneAgentDuty, 
+      agent_type: tempPaneData?.agent_type ?? paneAgentType, 
       init_script: tempPaneData?.init_script ?? paneInitScript,
       config: tempPaneData?.config ?? paneConfig,
       tg_token: tempPaneData?.tg_token ?? paneTgToken,
@@ -475,6 +513,7 @@ const App: React.FC = () => {
         setPaneTitle(dataToSave.title || BOT_NAME);
         setPaneWorkspace(dataToSave.workspace || '');
         setPaneAgentDuty(dataToSave.agent_duty || '');
+        setPaneAgentType(dataToSave.agent_type || '');
         setPaneInitScript(dataToSave.init_script || '');
         setPaneConfig(configToSave);
         setPaneTgToken(dataToSave.tg_token || '');
@@ -516,7 +555,7 @@ const App: React.FC = () => {
 
         <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
           <div className="absolute top-0 left-0 right-0 h-10 bg-gray-800 flex items-center gap-1 px-2 z-10">
-            {(['Settings', 'Agents', 'Code', ...(paneTtydPreview ? ['Preview' as const] : [])] as const).map(tab => (
+            {([ 'Code','Settings', 'Agents', "Preview"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => {
@@ -624,6 +663,7 @@ const App: React.FC = () => {
                   title: paneTitle, 
                   workspace: paneWorkspace, 
                   agent_duty: paneAgentDuty, 
+                  agent_type: paneAgentType, 
                   init_script: paneInitScript,
                   config: paneConfig,
                   tg_token: paneTgToken,
@@ -635,6 +675,7 @@ const App: React.FC = () => {
                   setPaneTitle(pane.title);
                   setPaneWorkspace(pane.workspace || '');
                   setPaneAgentDuty(pane.agent_duty || '');
+                  setPaneAgentType(pane.agent_type || '');
                   setPaneInitScript(pane.init_script || '');
                   setPaneConfig(pane.config || '{}');
                   setPaneTgToken(pane.tg_token || '');
@@ -687,7 +728,7 @@ const App: React.FC = () => {
         ></div>
         <div id="mainTtyd" className="absolute inset-0" style={{width: `${ttydWidth}px`, left: `calc(100vw - ${ttydWidth}px)`}}>
           {isTtydLoading && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
-          <iframe loading="lazy" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
+          <iframe ref={mainIframeRef} loading="lazy" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
           {isDragging && <div className="absolute inset-0 z-20"></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
         </div>
@@ -763,31 +804,13 @@ const App: React.FC = () => {
           onDraggingChange={setIsDragging}
           isTogglingMouse={isTogglingMouse}
           onToggleMouse={handleToggleMouse}
-          onReload={() => location.reload()}
-          boundAgents={boundAgents}
-          onRestart={async () => {
-            if (!confirm('Restart tmux and ttyd?')) return;
-            setIsRestarting(true);
-            try {
-              await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(BOT_NAME)}/restart`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-              });
-              for (let i = 0; i < 30; i++) {
-                await new Promise(r => setTimeout(r, 1000));
-                try {
-                  const res = await fetch(`${API_BASE}/api/ttyd/status/${encodeURIComponent(BOT_NAME)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    if (data.ready === true) { setIframeKey(k => k + 1); break; }
-                  }
-                } catch { /* poll */ }
-              }
-            } catch (e) { console.error(e); }
-            finally { setIsRestarting(false); }
+          onReload={() => {
+            if (mainIframeRef.current) {
+              mainIframeRef.current.src = mainIframeRef.current.src;
+            }
           }}
+          boundAgents={boundAgents}
+          onRestart={handleRestart}
           isRestarting={isRestarting}
           hasEditPermission={hasPermission('agent_manage')}
           hasRestartPermission={hasPermission('prompt')}

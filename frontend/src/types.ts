@@ -17,4 +17,5 @@ export interface AppSettings {
   showVoiceControl: boolean;
   voiceButtonPosition: Position;
   commandHistory: string[];
+  agent_duty?: string;
 }

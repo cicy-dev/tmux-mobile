@@ -5,6 +5,7 @@ export interface EditPaneData {
   target: string;
   title: string;
   agent_duty?: string;
+  agent_type?: string;
   workspace?: string;
   active?: boolean;
   init_script?: string;

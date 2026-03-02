@@ -63,6 +63,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
 
         {tab === 'Agent' && (<>
           <div>
+            <label className="block text-xs text-gray-400 mb-1">Agent Type</label>
+            <select value={pane.agent_type || ''}
+              onChange={e => onChange({ ...pane, agent_type: e.target.value })}
+              className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">无</option>
+              <option value="kiro-cli">kiro-cli</option>
+              <option value="opencode">opencode</option>
+              <option value="gemini">gemini</option>
+              <option value="claude">claude</option>
+              <option value="copilot">copilot</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-400 mb-1">Agent Duty</label>
             <textarea value={pane.agent_duty || ''}
               onChange={e => onChange({ ...pane, agent_duty: e.target.value })}

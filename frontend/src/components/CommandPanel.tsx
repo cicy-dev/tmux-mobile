@@ -1,5 +1,5 @@
 import React, { useEffect ,useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Loader2, CheckCircle, Sparkles, History, X, Check, Clipboard, Keyboard, Mouse, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, CheckCircle, Sparkles, History, X, Check, Clipboard, Mouse, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Wifi, WifiOff } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 import { TerminalControls } from './TerminalControls';
 import { Position, Size } from '../types';
@@ -17,7 +17,7 @@ interface CommandPanelProps {
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   onChange: (pos: Position, size: Size) => void;
-  onCapturePane?: () => void;
+  onCapturePane?: (pane_id?: string) => void;
   isCapturing?: boolean;
   canSend?: boolean;
   agentStatus?: string;
@@ -27,7 +27,7 @@ interface CommandPanelProps {
   onToggleMouse?: () => void;
   onEditPane?: () => void;
   onReload?: () => void;
-  onRestart?: () => void;
+  onRestart?: (pane_id?: string) => void;
   isRestarting?: boolean;
   hasEditPermission?: boolean;
   hasRestartPermission?: boolean;
@@ -81,10 +81,25 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tempDraft, setTempDraft] = useState('');
+  const [paneModes, setPaneModes] = useState<Record<string, 'on' | 'off'>>(() => {
+    const saved = localStorage.getItem('pane_mouse_modes');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   const tempPaneId = selectedPane.replace(/[^a-zA-Z0-9]/g, '_');
 
   const CMD_HISTORY_KEY = `cmd_history_${tempPaneId}`;
+
+  // 当切换 pane 时，应用该 pane 的鼠标模式
+  useEffect(() => {
+    const mode = paneModes[selectedPane] || mouseMode;
+    if (mode !== mouseMode && onToggleMouse) {
+      fetch(getApiUrl(`/api/tmux/mouse/${mode}?pane_id=${encodeURIComponent(selectedPane)}`), {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+      });
+    }
+  }, [selectedPane]);
 
   useEffect(() => {
     const saved = localStorage.getItem(CMD_HISTORY_KEY);
@@ -114,7 +129,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   const [correctedText, setCorrectedText] = useState('');
   const [isCorrectingEnglish, setIsCorrectingEnglish] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showArrows, setShowArrows] = useState(false);
   const sendQueueRef = useRef<string[]>([]);
   const [queueLen, setQueueLen] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -233,6 +247,22 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
       onDraggingChange={onDraggingChange}
       headerActions={
         <>
+          <button
+            onClick={handleCorrectEnglish}
+            disabled={!promptText.trim() || isCorrectingEnglish}
+            className="p-1.5 rounded text-purple-400 hover:bg-gray-700 disabled:opacity-40 transition-colors"
+            title="Correct English with AI"
+          >
+            {isCorrectingEnglish ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHistory(v => !v)}
+            className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+            title="Command history"
+          >
+            <History size={14} />
+          </button>
           <div
             className="flex items-center gap-1 px-1.5 py-0.5 rounded"
             title={networkLatency !== null ? `Latency: ${networkLatency}ms` : 'Offline'}
@@ -326,36 +356,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               disabled={isSending}
             />
           </div>
-          {showArrows && (
-            <div className="flex items-center justify-center gap-1.5 mt-1.5">
-              {[
-                { label: '←', key: 'Left' },
-                { label: '↓', key: 'Down' },
-                { label: '↑', key: 'Up' },
-                { label: '→', key: 'Right' },
-              ].map(b => (
-                <button key={b.key} type="button" onClick={async () => {
-                  const keyMap: Record<string, string> = { 'Left': 'Left', 'Down': 'Down', 'Up': 'Up', 'Right': 'Right', 'Enter': 'Enter', 'escape': 'Escape', 'ctrl+c': 'C-c' };
-                  const k = keyMap[b.key] || b.key;
-                  await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: k }) });
-                }}
-                  className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors shadow flex items-center justify-center"
-                >{b.label}</button>
-              ))}
-              <button type="button" onClick={async () => {
-                await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneTarget)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-              }} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors shadow" title="会话选择">^bs</button>
-              <button type="button" onClick={async () => {
-                await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneTarget)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-              }} className="p-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-md transition-colors shadow" title="水平分屏(上下)"><SplitSquareVertical size={14} /></button>
-              <button type="button" onClick={async () => {
-                await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneTarget)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-              }} className="p-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-md transition-colors shadow" title="垂直分屏(左右)"><SplitSquareHorizontal size={14} /></button>
-              <button type="button" onClick={async () => {
-                await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneTarget)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-              }} className="p-1.5 bg-red-700 hover:bg-red-600 text-white rounded-md transition-colors shadow" title="关闭分屏"><XSquare size={14} /></button>
-            </div>
-          )}
           <div className="flex items-center justify-between mt-1.5 px-0.5">
             <div className="text-xs flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${agentStatus === 'idle' ? 'bg-green-400' : agentStatus === 'wait_auth' ? 'bg-yellow-400 animate-pulse' : agentStatus === 'compacting' ? 'bg-blue-400 animate-pulse' : agentStatus === 'wait_startup' ? 'bg-gray-400' : 'bg-cyan-400 animate-pulse'}`} />
@@ -364,12 +364,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               {queueLen > 0 && <span className="text-orange-400 animate-pulse">· Q:{queueLen}</span>}
             </div>
             <div className="flex gap-1">
-              <button type="button" onClick={() => setShowArrows(v => !v)}
-                className={`p-1.5 rounded-md transition-colors shadow-lg ${showArrows ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                title="Arrow keys"
-              >
-                <Keyboard size={14} />
-              </button>
               <select
                 className="bg-gray-800 text-gray-300 text-xs rounded-md border border-gray-700 px-1.5 py-1.5 outline-none cursor-pointer hover:bg-gray-700"
                 value=""
@@ -377,10 +371,18 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                   const v = e.target.value;
                   if (!v) return;
                   e.target.value = '';
-                  await sendCommandToTmux(v, selectedPane);
+                  if (['Left', 'Down', 'Up', 'Right'].includes(v)) {
+                    await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: v }) });
+                  } else {
+                    await sendCommandToTmux(v, selectedPane);
+                  }
                 }}
               >
                 <option value="">⚡</option>
+                <option value="Left">← Left</option>
+                <option value="Down">↓ Down</option>
+                <option value="Up">↑ Up</option>
+                <option value="Right">→ Right</option>
                 <option value="/compact">/compact</option>
                 <option value="/model">/model</option>
                 <option value="/tools trust-all">Trust All</option>
@@ -403,28 +405,34 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
           {/* Bottom action buttons */}
           <div className="flex items-center justify-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
             <TerminalControls
-              mouseMode={mouseMode}
-              onToggleMouse={onToggleMouse}
+              mouseMode={paneModes[selectedPane] || mouseMode}
+              onToggleMouse={() => {
+                const newMode = (paneModes[selectedPane] || mouseMode) === 'on' ? 'off' : 'on';
+                const updated = { ...paneModes, [selectedPane]: newMode };
+                setPaneModes(updated);
+                localStorage.setItem('pane_mouse_modes', JSON.stringify(updated));
+                onToggleMouse?.();
+              }}
               isTogglingMouse={isTogglingMouse}
-              onCapture={hasCapturePermission ? onCapturePane : undefined}
+              onCapture={hasCapturePermission ? () => onCapturePane?.(selectedPane) : undefined}
               isCapturing={isCapturing}
             />
-            <button
-              onClick={handleCorrectEnglish}
-              disabled={!promptText.trim() || isCorrectingEnglish}
-              className="p-1.5 rounded text-purple-400 hover:bg-gray-700 disabled:opacity-40 transition-colors"
-              title="Correct English with AI"
-            >
-              {isCorrectingEnglish ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowHistory(v => !v)}
-              className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              title="Command history"
-            >
-              <History size={14} />
-            </button>
+            <button type="button" onClick={async () => {
+              const paneId = selectedPane.replace(':main.0', '');
+              await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            }} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors shadow" title="会话选择">^bs</button>
+            <button type="button" onClick={async () => {
+              const paneId = selectedPane.replace(':main.0', '');
+              await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            }} className="p-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-md transition-colors shadow" title="水平分屏(上下)"><SplitSquareVertical size={14} /></button>
+            <button type="button" onClick={async () => {
+              const paneId = selectedPane.replace(':main.0', '');
+              await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            }} className="p-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-md transition-colors shadow" title="垂直分屏(左右)"><SplitSquareHorizontal size={14} /></button>
+            <button type="button" onClick={async () => {
+              const paneId = selectedPane.replace(':main.0', '');
+              await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            }} className="p-1.5 bg-red-700 hover:bg-red-600 text-white rounded-md transition-colors shadow" title="关闭分屏"><XSquare size={14} /></button>
             {onReload && (
               <button
                 onClick={onReload}
@@ -436,9 +444,8 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
             )}
             {hasRestartPermission && onRestart && (
               <button
-                onClick={onRestart}
-                disabled={isRestarting}
-                className="p-1.5 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                onClick={() => onRestart(selectedPane)}
+                className="p-1.5 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors"
                 title="Restart tmux and ttyd"
               >
                 <Power size={14} className={isRestarting ? 'animate-pulse' : ''} />
