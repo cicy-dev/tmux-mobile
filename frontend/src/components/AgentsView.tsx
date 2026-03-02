@@ -107,7 +107,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
           className="flex-1 bg-gray-800 border border-gray-600 text-white text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
         >
           <option value="">Select an agent...</option>
-          {allAgents.map(agent => (
+          {allAgents.filter(agent => !agent.name.startsWith('ttyd_preview')).map(agent => (
             <option key={agent.name} value={agent.name}>{agent.name}</option>
           ))}
         </select>
@@ -121,10 +121,15 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
       </div>
 
       <div className="space-y-2 overflow-y-auto">
-        {agents.length === 0 ? (
-          <p className="text-gray-500 text-sm">No agents bound to this pane</p>
+        {agents.filter(agent => !agent.name.startsWith('ttyd_preview')).length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+            <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p className="text-sm">No agents bound to this pane</p>
+          </div>
         ) : (
-          agents.map(agent => (
+          agents.filter(agent => !agent.name.startsWith('ttyd_preview')).map(agent => (
             <div key={agent.id} className="bg-gray-800 border border-gray-700 rounded p-3 flex items-center justify-between">
               <div>
                 <p className="text-white font-medium">{agent.name}</p>

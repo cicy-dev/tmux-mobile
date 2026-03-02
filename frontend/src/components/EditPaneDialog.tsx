@@ -17,6 +17,7 @@ export interface EditPaneData {
   allowed_users?: string;
   proxy_enable?: boolean;
   config?: string;
+  ttyd_preview?: string;
 }
 
 interface EditPaneDialogProps {

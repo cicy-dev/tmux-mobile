@@ -24,8 +24,8 @@ console.log({BOT_NAME})
 const TMUX_TARGET = `${BOT_NAME}`;
 
 const DEFAULT_SETTINGS: AppSettings = {
-  panelPosition: { x: Math.max(20, window.innerWidth / 2 - 150), y: Math.max(60, window.innerHeight - 160) },
-  panelSize: { width: 360, height: 180 },
+  panelPosition: { x: Math.max(20, window.innerWidth - 380), y: Math.max(60, window.innerHeight - 240) },
+  panelSize: { width: 360, height: 220 },
   forwardEvents: true,
   lastDraft: '',
   showPrompt: true,
@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [paneInitScript, setPaneInitScript] = useState<string>('');
   const [paneConfig, setPaneConfig] = useState<string>('');
   const [paneTgToken, setPaneTgToken] = useState<string>('');
+  const [paneTtydPreview, setPaneTtydPreview] = useState<string>('');
   const [paneTgChatId, setPaneTgChatId] = useState<string>('');
   const [paneTgEnable, setPaneTgEnable] = useState<boolean>(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -77,7 +78,7 @@ const App: React.FC = () => {
   const [isTtydLoading, setIsTtydLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'Agents' | 'Settings'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_activeTab`);
-    return (saved as any) || 'Services';
+    return (saved as any) || 'Settings';
   });
   const [servicesTab, setServicesTab] = useState<'Electron' | 'Mysql' | 'Monitor' | 'VNC'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_servicesTab`);
@@ -162,6 +163,7 @@ const App: React.FC = () => {
             setPaneInitScript(data.init_script || '');
             setPaneTgToken(data.tg_token || '');
             setPaneTgChatId(data.tg_chat_id || '');
+            setPaneTtydPreview(data.ttyd_preview || '');
             setPaneTgEnable(data.tg_enable || false);
             
             // Parse config JSON
@@ -433,16 +435,17 @@ const App: React.FC = () => {
   const [tempPaneData, setTempPaneData] = useState<EditPaneData | null>(null);
 
   const handleSavePane = async () => {
-    const dataToSave = tempPaneData || {
+    const dataToSave = {
       target: TMUX_TARGET, 
-      title: paneTitle, 
-      workspace: paneWorkspace, 
-      agent_duty: paneAgentDuty, 
-      init_script: paneInitScript,
-      config: paneConfig,
-      tg_token: paneTgToken,
-      tg_chat_id: paneTgChatId,
-      tg_enable: paneTgEnable
+      title: tempPaneData?.title ?? paneTitle, 
+      workspace: tempPaneData?.workspace ?? paneWorkspace, 
+      agent_duty: tempPaneData?.agent_duty ?? paneAgentDuty, 
+      init_script: tempPaneData?.init_script ?? paneInitScript,
+      config: tempPaneData?.config ?? paneConfig,
+      tg_token: tempPaneData?.tg_token ?? paneTgToken,
+      tg_chat_id: tempPaneData?.tg_chat_id ?? paneTgChatId,
+      tg_enable: tempPaneData?.tg_enable ?? paneTgEnable,
+      ttyd_preview: tempPaneData?.ttyd_preview ?? paneTtydPreview
     };
     
     // Validate and set default config
@@ -477,6 +480,7 @@ const App: React.FC = () => {
         setPaneTgToken(dataToSave.tg_token || '');
         setPaneTgChatId(dataToSave.tg_chat_id || '');
         setPaneTgEnable(dataToSave.tg_enable || false);
+        setPaneTtydPreview(dataToSave.ttyd_preview || '');
         
         // Update previewUrls from saved config
         try {
@@ -510,9 +514,9 @@ const App: React.FC = () => {
       {
         MODE === "ttyd" && <div id="mainIfame" className="fixed inset-0"> 
 
-        <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px)`}}>
+        <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
           <div className="absolute top-0 left-0 right-0 h-10 bg-gray-800 flex items-center gap-1 px-2 z-10">
-            {(['Services', 'Settings', 'Code', 'Docs', 'Preview', 'Agents'] as const).map(tab => (
+            {(['Settings', 'Agents', 'Code', ...(paneTtydPreview ? ['Preview' as const] : [])] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => {
@@ -527,72 +531,40 @@ const App: React.FC = () => {
           </div>
           {isCodeServerLoading && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
-          {paneWorkspace && (
-            <iframe onLoad={() => setIsCodeServerLoading(false)} src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Code' ? 'block' : 'none'}}></iframe>
-          )}
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-electron-mcp-ui.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Electron' ? 'block' : 'none'}}></iframe>
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-12222.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Mysql' ? 'block' : 'none'}}></iframe>
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-18888.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'Monitor' ? 'block' : 'none'}}></iframe>
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-vnc.cicy.de5.net/" className="w-full h-full" style={{marginTop: '72px', display: activeTab === 'Services' && servicesTab === 'VNC' ? 'block' : 'none'}}></iframe>
-          {activeTab === 'Services' && (
-            <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
-              {(['Electron', 'Mysql', 'Monitor', 'VNC'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => {
-                    setServicesTab(tab);
-                    localStorage.setItem(`${BOT_NAME}_servicesTab`, tab);
-                  }}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: '13px',
-                    background: servicesTab === tab ? '#374151' : 'transparent',
-                    color: servicesTab === tab ? '#fff' : '#9ca3af',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          )}
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-fast-api.cicy.de5.net/docs" className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Docs' && docsTab === 'Fast-api' ? 'block' : 'none'}}></iframe>
-          <iframe onLoad={() => setIsCodeServerLoading(false)} src="https://g-electron.cicy.de5.net/docs" className="w-full h-full" style={{marginTop: '40px', display: activeTab === 'Docs' && docsTab === 'Electron' ? 'block' : 'none'}}></iframe>
-          {activeTab === 'Docs' && (
-            <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
-              {(['Fast-api', 'Electron'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => {
-                    setDocsTab(tab);
-                    localStorage.setItem(`${BOT_NAME}_docsTab`, tab);
-                  }}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: '13px',
-                    background: docsTab === tab ? '#374151' : 'transparent',
-                    color: docsTab === tab ? '#fff' : '#9ca3af',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          )}
+            {paneWorkspace && (
+              <div className="absolute inset-0" style={{marginTop: '40px', display: activeTab === 'Code' ? 'block' : 'none'}}>
+                <iframe sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsCodeServerLoading(false)} src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="w-full h-full"></iframe>
+                {isDragging && <div className="absolute inset-0 z-20"></div>}
+              </div>
+            )}
           {activeTab === 'Preview' && (
             <>
-              {previewUrls.length === 0 ? (
+              {previewUrls.length === 0 && !paneTtydPreview ? (
                 <div className="flex items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
                   <p className="text-gray-500 text-lg">No preview URLs configured</p>
                 </div>
               ) : (
                 <>
                   <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
+                    {paneTtydPreview && (
+                      <button
+                        onClick={() => {
+                          setPreviewTab(-1);
+                          localStorage.setItem(`${BOT_NAME}_previewTab`, '-1');
+                        }}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: '13px',
+                          background: previewTab === -1 ? '#374151' : 'transparent',
+                          color: previewTab === -1 ? '#fff' : '#9ca3af',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        TTYD
+                      </button>
+                    )}
                     {previewUrls.map((item: any, idx) => (
                       <button
                         key={idx}
@@ -614,14 +586,26 @@ const App: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                  {paneTtydPreview && (
+                    <div className="absolute inset-0" style={{marginTop: '72px', display: previewTab === -1 ? 'block' : 'none'}}>
+                      <iframe
+                        sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                        src={`https://ttyd-proxy.cicy.de5.net/ttyd/${paneTtydPreview.replace(':main.0', '')}?token=${token}&m=1&mode=1`}
+                        className="w-full h-full"
+                      />
+                      {isDragging && <div className="absolute inset-0 z-20"></div>}
+                    </div>
+                  )}
                   {previewUrls.map((item: any, idx) => (
-                    <iframe
-                      key={idx}
-                      onLoad={() => setIsCodeServerLoading(false)}
-                      src={item.url || item}
-                      className="w-full h-full"
-                      style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}
-                    />
+                    <div key={idx} className="absolute inset-0" style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}>
+                      <iframe
+                        sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                        onLoad={() => setIsCodeServerLoading(false)}
+                        src={item.url || item}
+                        className="w-full h-full"
+                      />
+                      {isDragging && <div className="absolute inset-0 z-20"></div>}
+                    </div>
                   ))}
                 </>
               )}
@@ -629,7 +613,7 @@ const App: React.FC = () => {
           )}
           {activeTab === 'Agents' && (
             <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
-              <AgentsListView paneId={BOT_NAME} token={token} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
+              <AgentsListView paneId={BOT_NAME} token={token} ttydPreview={paneTtydPreview} isDragging={isDragging} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
             </div>
           )}
           {activeTab === 'Settings' && (
@@ -644,7 +628,8 @@ const App: React.FC = () => {
                   config: paneConfig,
                   tg_token: paneTgToken,
                   tg_chat_id: paneTgChatId,
-                  tg_enable: paneTgEnable
+                  tg_enable: paneTgEnable,
+                  ttyd_preview: paneTtydPreview
                 }}
                 onChange={(pane) => {
                   setPaneTitle(pane.title);
@@ -653,6 +638,9 @@ const App: React.FC = () => {
                   setPaneInitScript(pane.init_script || '');
                   setPaneConfig(pane.config || '{}');
                   setPaneTgToken(pane.tg_token || '');
+                  setPaneTgChatId(pane.tg_chat_id || '');
+                  setPaneTgEnable(pane.tg_enable || false);
+                  setPaneTtydPreview(pane.ttyd_preview || '');
                   setPaneTgChatId(pane.tg_chat_id || '');
                   setPaneTgEnable(pane.tg_enable || false);
                   
@@ -675,7 +663,7 @@ const App: React.FC = () => {
         </div>
         <div id="drag" 
           className="absolute inset-y-0 w-1 bg-gray-600 hover:bg-blue-500 cursor-col-resize z-10"
-          style={{left: `calc(100vw - ${ttydWidth}px)`}}
+          style={{left: `calc(100vw - ${ttydWidth}px - 4px)`}}
           onMouseDown={(e) => {
             e.preventDefault();
             setIsDragging(true);
@@ -699,7 +687,7 @@ const App: React.FC = () => {
         ></div>
         <div id="mainTtyd" className="absolute inset-0" style={{width: `${ttydWidth}px`, left: `calc(100vw - ${ttydWidth}px)`}}>
           {isTtydLoading && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
-          <iframe onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
+          <iframe sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
           {isDragging && <div className="absolute inset-0 z-20"></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
         </div>

@@ -69,6 +69,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
               className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500 resize-none"
               rows={6} placeholder="Describe agent's role and responsibilities..." />
           </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">TTYD Preview</label>
+            <input type="text" value={pane.ttyd_preview || ''}
+              onChange={e => onChange({ ...pane, ttyd_preview: e.target.value })}
+              className="w-full bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+              placeholder="w-12345" />
+          </div>
         </>)}
 
         {tab === 'Config' && (<>

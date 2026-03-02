@@ -44,6 +44,7 @@ export const TtydFrame = forwardRef<TtydFrameHandle, TtydFrameProps>(
     return (
       <div className="absolute inset-0 z-[1] bg-black overflow-hidden mb-9">
         <iframe
+          sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
           ref={iframeRef}
           src={ttydUrl}
           title="ttyd"

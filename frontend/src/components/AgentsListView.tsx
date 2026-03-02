@@ -14,11 +14,13 @@ interface Agent {
 interface AgentsListViewProps {
   paneId: string;
   token: string | null;
+  ttydPreview?: string;
+  isDragging?: boolean;
   onAgentsChange?: (agents: string[]) => void;
   onCaptureOpen?: (isOpen: boolean) => void;
 }
 
-export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, onAgentsChange, onCaptureOpen }) => {
+export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, ttydPreview, isDragging, onAgentsChange, onCaptureOpen }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [allAgents, setAllAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
@@ -227,7 +229,7 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, o
         >
           <option value="">Select an agent...</option>
           {allAgents
-            .filter(agent => agent.pane_id !== paneId && !agents.find(a => a.name === agent.pane_id))
+            .filter(agent => agent.pane_id !== paneId && agent.pane_id !== ttydPreview && !agents.find(a => a.name === agent.pane_id))
             .map(agent => (
               <option key={agent.pane_id} value={agent.pane_id}>{agent.title || agent.pane_id}</option>
             ))}
@@ -239,6 +241,45 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, o
         >
           <Plus size={14} /> Add
         </button>
+        <button
+          onClick={async () => {
+            try {
+              const res = await fetch(getApiUrl('/api/tmux/create'), {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  win_name: `SubAgent(${paneId})`,
+                  workspace: '',
+                  init_script: 'pwd'
+                })
+              });
+              const data = await res.json();
+              if (res.ok && data.pane_id) {
+                await fetch(getApiUrl('/api/agents/bind'), {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ pane_id: paneId, agent_name: data.pane_id })
+                });
+                fetchAgents();
+                fetchAllAgents();
+              } else {
+                alert(`Failed: ${data.detail || data.error || 'Unknown error'}`);
+              }
+            } catch (err) {
+              console.error(err);
+              alert(`Error: ${err}`);
+            }
+          }}
+          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded flex items-center gap-1 text-sm"
+        >
+          <Plus size={14} /> New Agent
+        </button>
       </div>
 
       {agents.length === 0 ? (
@@ -247,7 +288,7 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, o
         </div>
       ) : (
         <div className="flex flex-col gap-2 h-full overflow-auto">
-          {agents.map(agent => (
+          {agents.filter(a => a.name !== ttydPreview).map(agent => (
             <div key={agent.id} className="bg-gray-800 border border-gray-700 rounded relative" style={{height: `${heights[agent.name] || 150}px`}}>
               {resizing !== null && (
                 <div className="absolute inset-0 z-20 bg-transparent" />
@@ -300,11 +341,13 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, o
                 </button>
               </div>
               <iframe
+                sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
                 key={iframeKeys[agent.name] || 0}
                 src={`https://ttyd-proxy.cicy.de5.net/ttyd/${agent.name}/?token=${token}&mode=1`}
                 className="w-full h-full rounded align-top"
                 style={{verticalAlign: 'top'}}
               />
+              {isDragging && <div className="absolute inset-0 z-20"></div>}
               <div
                 onMouseDown={(e) => handleMouseDown(agent.name, e)}
                 className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors"
