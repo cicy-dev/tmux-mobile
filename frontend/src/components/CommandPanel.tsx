@@ -102,6 +102,21 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   }, [selectedPane]);
 
   useEffect(() => {
+    const handleSelectPane = (e: CustomEvent) => {
+      const paneId = e.detail?.paneId;
+      console.log('[CommandPanel] Received selectPane event:', paneId);
+      console.log('[CommandPanel] Current boundAgents:', boundAgents);
+      console.log('[CommandPanel] paneTarget:', paneTarget);
+      if (paneId) {
+        setSelectedPane(paneId);
+        console.log('[CommandPanel] Updated selectedPane to:', paneId);
+      }
+    };
+    window.addEventListener('selectPane', handleSelectPane as EventListener);
+    return () => window.removeEventListener('selectPane', handleSelectPane as EventListener);
+  }, [boundAgents, paneTarget]);
+
+  useEffect(() => {
     const saved = localStorage.getItem(CMD_HISTORY_KEY);
     if (saved) {
       try { setCommandHistory(JSON.parse(saved)); } catch {}

@@ -78,7 +78,7 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isCodeServerLoading, setIsCodeServerLoading] = useState(true);
   const [isTtydLoading, setIsTtydLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'Agents' | 'Settings'>(() => {
+  const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'TTYD' | 'Agents' | 'Settings'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_activeTab`);
     return (saved as any) || 'Settings';
   });
@@ -555,7 +555,7 @@ const App: React.FC = () => {
 
         <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
           <div className="absolute top-0 left-0 right-0 h-10 bg-gray-800 flex items-center gap-1 px-2 z-10">
-            {([ 'Code','Settings', 'Agents', "Preview"] as const).map(tab => (
+            {([ 'Code','Settings', 'Agents', 'Preview', 'TTYD'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => {
@@ -568,7 +568,7 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
-          {isCodeServerLoading && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
+          {isCodeServerLoading && activeTab === 'Code' && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
             {paneWorkspace && (
               <div className="absolute inset-0" style={{marginTop: '40px', display: activeTab === 'Code' ? 'block' : 'none'}}>
@@ -578,32 +578,17 @@ const App: React.FC = () => {
             )}
           {activeTab === 'Preview' && (
             <>
-              {previewUrls.length === 0 && !paneTtydPreview ? (
-                <div className="flex items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
-                  <p className="text-gray-500 text-lg">No preview URLs configured</p>
+              {previewUrls.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600 mb-4">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  <p className="text-gray-500 text-sm">No preview URLs found</p>
                 </div>
               ) : (
                 <>
                   <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px 8px'}}>
-                    {paneTtydPreview && (
-                      <button
-                        onClick={() => {
-                          setPreviewTab(-1);
-                          localStorage.setItem(`${BOT_NAME}_previewTab`, '-1');
-                        }}
-                        style={{
-                          padding: '4px 12px',
-                          fontSize: '13px',
-                          background: previewTab === -1 ? '#374151' : 'transparent',
-                          color: previewTab === -1 ? '#fff' : '#9ca3af',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        TTYD
-                      </button>
-                    )}
                     {previewUrls.map((item: any, idx) => (
                       <button
                         key={idx}
@@ -625,16 +610,6 @@ const App: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  {paneTtydPreview && (
-                    <div className="absolute inset-0" style={{marginTop: '72px', display: previewTab === -1 ? 'block' : 'none'}}>
-                      <iframe
-                        sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-                        src={`https://ttyd-proxy.cicy.de5.net/ttyd/${paneTtydPreview.replace(':main.0', '')}?token=${token}&m=1&mode=1`}
-                        className="w-full h-full"
-                      />
-                      {isDragging && <div className="absolute inset-0 z-20"></div>}
-                    </div>
-                  )}
                   {previewUrls.map((item: any, idx) => (
                     <div key={idx} className="absolute inset-0" style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}>
                       <iframe
@@ -654,6 +629,47 @@ const App: React.FC = () => {
             <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
               <AgentsListView paneId={BOT_NAME} token={token} ttydPreview={paneTtydPreview} isDragging={isDragging} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
             </div>
+          )}
+          {activeTab === 'TTYD' && (
+            <>
+              {paneTtydPreview ? (
+                <div 
+                  className="absolute inset-0" 
+                  style={{marginTop: '40px'}}
+                  onMouseLeave={(e) => {
+                    const target = e.currentTarget.querySelector('.ttyd-mask') as HTMLElement;
+                    if (target) target.style.display = 'block';
+                  }}
+                >
+                  <div className="relative w-full h-full">
+                    <iframe
+                      sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                      src={`https://ttyd-proxy.cicy.de5.net/ttyd/${paneTtydPreview.replace(':main.0', '')}?token=${token}&m=1&mode=1`}
+                      className="w-full h-full"
+                    />
+                    <div 
+                      className="ttyd-mask absolute inset-0 bg-transparent z-10"
+                      style={{display: 'none', pointerEvents: 'auto'}}
+                      onClick={(e) => {
+                        console.log('[TTYD] Dispatching selectPane event:', paneTtydPreview);
+                        window.dispatchEvent(new CustomEvent('selectPane', { detail: { paneId: paneTtydPreview } }));
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  {isDragging && <div className="absolute inset-0 z-20"></div>}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600 mb-4">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                  <p className="text-gray-500 text-sm">No TTYD preview found</p>
+                </div>
+              )}
+            </>
           )}
           {activeTab === 'Settings' && (
             <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
@@ -726,9 +742,34 @@ const App: React.FC = () => {
             document.addEventListener('mouseup', onMouseUp);
           }}
         ></div>
-        <div id="mainTtyd" className="absolute inset-0" style={{width: `${ttydWidth}px`, left: `calc(100vw - ${ttydWidth}px)`}}>
+        <div 
+          id="mainTtyd" 
+          className="absolute inset-0" 
+          style={{width: `${ttydWidth}px`, left: `calc(100vw - ${ttydWidth}px)`}}
+          onMouseLeave={(e) => {
+            const target = e.currentTarget.querySelector('.ttyd-mask') as HTMLElement;
+            if (target) target.style.display = 'block';
+          }}
+        >
           {isTtydLoading && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
-          <iframe ref={mainIframeRef} loading="lazy" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsTtydLoading(false)} src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} className="w-full h-full"></iframe>
+          <div className="relative w-full h-full">
+            <iframe 
+              ref={mainIframeRef} 
+              loading="lazy" 
+              sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" 
+              onLoad={() => setIsTtydLoading(false)} 
+              src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} 
+              className="w-full h-full"
+            />
+            <div 
+              className="ttyd-mask absolute inset-0 bg-transparent z-10"
+              style={{display: 'none', pointerEvents: 'auto'}}
+              onClick={(e) => {
+                window.dispatchEvent(new CustomEvent('selectPane', { detail: { paneId: TMUX_TARGET } }));
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
           {isDragging && <div className="absolute inset-0 z-20"></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
         </div>

@@ -239,7 +239,15 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
       ) : (
         <div className="flex flex-col gap-2 h-full overflow-auto">
           {agents.filter(a => a.name !== ttydPreview).map(agent => (
-            <div key={agent.id} className="bg-gray-800 border border-gray-700 rounded relative" style={{height: `${heights[agent.name] || 150}px`}}>
+            <div 
+              key={agent.id} 
+              className="bg-gray-800 border border-gray-700 rounded relative" 
+              style={{height: `${heights[agent.name] || 150}px`}}
+              onMouseLeave={(e) => {
+                const target = e.currentTarget.querySelector('.ttyd-mask') as HTMLElement;
+                if (target) target.style.display = 'block';
+              }}
+            >
               {resizing !== null && (
                 <div className="absolute inset-0 z-20 bg-transparent" />
               )}
@@ -273,6 +281,14 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
                 src={`https://ttyd-proxy.cicy.de5.net/ttyd/${agent.name}/?token=${token}&mode=1`}
                 className="w-full h-full rounded align-top"
                 style={{verticalAlign: 'top'}}
+              />
+              <div 
+                className="ttyd-mask absolute inset-0 bg-transparent"
+                style={{display: 'none', pointerEvents: 'auto'}}
+                onClick={(e) => {
+                  window.dispatchEvent(new CustomEvent('selectPane', { detail: { paneId: agent.name } }));
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
               />
               {isDragging && <div className="absolute inset-0 z-20"></div>}
               <div
