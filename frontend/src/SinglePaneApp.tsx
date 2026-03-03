@@ -80,6 +80,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(`${BOT_NAME}_ttydPreviewHeight`);
     return saved ? parseInt(saved) : 300;
   });
+  const [commandPanelHeight, setCommandPanelHeight] = useState(() => {
+    const saved = localStorage.getItem(`${BOT_NAME}_commandPanelHeight`);
+    return saved ? parseInt(saved) : 220;
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [isCodeServerLoading, setIsCodeServerLoading] = useState(true);
   const [isTtydLoading, setIsTtydLoading] = useState(true);
@@ -802,7 +806,7 @@ const App: React.FC = () => {
               onLoad={() => setIsTtydLoading(false)} 
               src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`} 
               className="w-full h-full"
-              style={{height: MODE === 'ttyd' && settings.showPrompt && hasPermission('prompt') ? `calc(100% - ${settings.panelSize.height}px)` : '100%'}}
+              style={{height: MODE === 'ttyd' && settings.showPrompt && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%'}}
             />
             <div 
               className="ttyd-mask absolute inset-0 bg-transparent z-10"
@@ -816,14 +820,35 @@ const App: React.FC = () => {
           {isDragging && <div className="absolute inset-0 z-20"></div>}
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
           {MODE === 'ttyd' && settings.showPrompt && hasPermission('prompt') && (
-            <div className="absolute bottom-0 left-0 right-0" style={{height: `${settings.panelSize.height}px`}}>
+            <div className="absolute bottom-0 left-0 right-0" style={{height: `${commandPanelHeight}px`}}>
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 bg-gray-600 hover:bg-blue-500 cursor-row-resize z-50"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                  const startY = e.clientY;
+                  const startHeight = commandPanelHeight;
+                  const onMouseMove = (e: MouseEvent) => {
+                    const newHeight = Math.max(150, Math.min(window.innerHeight - 100, startHeight - (e.clientY - startY)));
+                    setCommandPanelHeight(newHeight);
+                  };
+                  const onMouseUp = () => {
+                    setIsDragging(false);
+                    localStorage.setItem(`${BOT_NAME}_commandPanelHeight`, commandPanelHeight.toString());
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                  };
+                  document.addEventListener('mousemove', onMouseMove);
+                  document.addEventListener('mouseup', onMouseUp);
+                }}
+              ></div>
               <CommandPanel
                 ref={commandPanelRef}
                 paneTarget={TMUX_TARGET}
                 title={paneTitle || BOT_NAME}
                 token={token}
                 panelPosition={{x: 0, y: 0}}
-                panelSize={{width: ttydWidth, height: settings.panelSize.height}}
+                panelSize={{width: ttydWidth, height: commandPanelHeight}}
                 readOnly={readOnly}
                 onReadOnlyToggle={() => setReadOnly(v => !v)}
                 onInteractionStart={() => setIsInteracting(true)}
