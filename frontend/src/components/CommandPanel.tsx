@@ -6,6 +6,15 @@ import { Position, Size } from '../types';
 import { sendCommandToTmux } from '../services/mockApi';
 import { getApiUrl } from '../services/apiUrl';
 
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+`;
+document.head.appendChild(style);
+
 interface CommandPanelProps {
   paneTarget: string;
   title: string;
@@ -40,11 +49,15 @@ interface CommandPanelProps {
   disableDrag?: boolean;
   showVoiceControl?: boolean;
   onToggleVoiceControl?: () => void;
+  mode?: string | null;
+  onShowHistory?: (history: string[], onSelect: (cmd: string) => void) => void;
+  onShowCorrection?: (result: [string, string]) => void;
 }
 
 export interface CommandPanelHandle {
   focusTextarea: () => void;
   setPrompt: (text: string) => void;
+  correctedResult: string | null;
 }
 
 export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
@@ -81,6 +94,9 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   disableDrag = false,
   showVoiceControl = false,
   onToggleVoiceControl,
+  mode = null,
+  onShowHistory,
+  onShowCorrection,
 }, ref) => {
   const [selectedPane, setSelectedPane] = useState(paneTarget);
   const [promptText, setPromptText] = useState('');
@@ -147,8 +163,9 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
 
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
-  const [correctedText, setCorrectedText] = useState('');
+  const [correctedResult, setCorrectedResult] = useState<string | null>(null);
   const [isCorrectingEnglish, setIsCorrectingEnglish] = useState(false);
+  const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const sendQueueRef = useRef<string[]>([]);
   const [queueLen, setQueueLen] = useState(0);
@@ -165,12 +182,67 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   useImperativeHandle(ref, () => ({
     focusTextarea: () => { setTimeout(() => textareaRef.current?.focus(), 50); },
     setPrompt: (text: string) => { setPromptText(text); setTimeout(() => textareaRef.current?.focus(), 50); },
+    correctedResult: correctedResult,
   }));
 
   const handleSendPrompt = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     const cmd = promptText.trim();
+    
+    // If prompt is empty but correction result exists, send the corrected English
+    if (!cmd && correctedResult) {
+      const correctedCmd = correctedResult;
+      const newHistory = [correctedCmd, ...commandHistory.filter(c => c !== correctedCmd)].slice(0, 50);
+      setCommandHistory(newHistory);
+      saveCommandHistory(newHistory);
+      setCorrectedResult(null);
+      if (onShowCorrection) {
+        onShowCorrection(null as any);
+      }
+      setIsSending(true);
+      setSendSuccess(false);
+      try {
+        await sendCommandToTmux(correctedCmd, selectedPane);
+        setSendSuccess(true);
+        setTimeout(() => setSendSuccess(false), 2000);
+      } catch (e) { 
+        console.error(e);
+      }
+      finally {
+        setIsSending(false);
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      }
+      return;
+    }
+    
     if (!cmd || !paneTarget) return;
+    
+    // If auto-correct is enabled, correct first
+    if (autoCorrectEnabled && token) {
+      setPromptText('');
+      saveDraft('');
+      setIsCorrectingEnglish(true);
+      try {
+        const res = await fetch(getApiUrl('/api/correctEnglish'), {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: cmd })
+        });
+        const data = await res.json();
+        if (data.success && data.result && typeof data.result === "string") {
+          setCorrectedResult(data.result);
+          if (onShowCorrection) {
+            onShowCorrection(data.result);
+          }
+        }
+      } catch (e) { 
+        console.error('Correct English error:', e); 
+      } finally { 
+        setIsCorrectingEnglish(false); 
+      }
+      return;
+    }
+    
     const newHistory = [cmd, ...commandHistory.filter(c => c !== cmd)].slice(0, 50);
     setCommandHistory(newHistory);
     saveCommandHistory(newHistory);
@@ -189,7 +261,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
       setIsSending(false);
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
-  }, [promptText, paneTarget, canSend]);
+  }, [promptText, paneTarget, canSend, autoCorrectEnabled, token, correctedResult, commandHistory, selectedPane, onShowCorrection]);
 
   // 队列自动发送已禁用
   // useEffect(() => {
@@ -207,7 +279,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
   const handleCorrectEnglish = async () => {
     if (!promptText.trim() || isCorrectingEnglish || !token) return;
     setIsCorrectingEnglish(true);
-    setCorrectedText('');
+    setCorrectedResult(null);
     try {
       const res = await fetch(getApiUrl('/api/correctEnglish'), {
         method: 'POST',
@@ -215,15 +287,27 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
         body: JSON.stringify({ text: promptText })
       });
       const data = await res.json();
-      if (data.success && data.correctedText) setCorrectedText(data.correctedText);
-    } catch (e) { console.error(e); }
-    finally { setIsCorrectingEnglish(false); }
+      console.log('Correct English result:', data);
+      if (data.success && data.result && typeof data.result === "string") {
+        // result is [English, Chinese]
+        setCorrectedResult(data.result);
+        if (onShowCorrection) {
+          onShowCorrection(data.result);
+        }
+      }
+    } catch (e) { 
+      console.error('Correct English error:', e); 
+    } finally { 
+      setIsCorrectingEnglish(false); 
+    }
   };
 
   const handleAcceptCorrection = () => {
-    setPromptText(correctedText);
-    setCorrectedText('');
-    setTimeout(() => textareaRef.current?.focus(), 50);
+    if (correctedResult) {
+      setPromptText(correctedResult[0]);
+      setCorrectedResult(null);
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    }
   };
 
   const handleSelectHistory = (cmd: string) => {
@@ -278,22 +362,24 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               <Mic size={14} />
             </button>
           )}
-          <button
-            onClick={handleCorrectEnglish}
-            disabled={!promptText.trim() || isCorrectingEnglish}
-            className="p-1.5 rounded text-purple-400 hover:bg-gray-700 disabled:opacity-40 transition-colors"
-            title="Correct English with AI"
-          >
-            {isCorrectingEnglish ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowHistory(v => !v)}
-            className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-            title="Command history"
-          >
-            <History size={14} />
-          </button>
+          {mode === 'ttyd' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onShowHistory) {
+                    onShowHistory(commandHistory, handleSelectHistory);
+                  } else {
+                    setShowHistory(v => !v);
+                  }
+                }}
+                className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                title="Command history"
+              >
+                <History size={14} />
+              </button>
+            </>
+          )}
           <div
             className="flex items-center gap-1 px-1.5 py-0.5 rounded"
             title={networkLatency !== null ? `Latency: ${networkLatency}ms` : 'Offline'}
@@ -324,7 +410,54 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onKeyDown={async (e) => {
-                
+                // Ctrl+Enter = trigger correction or send result
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  
+                  // If no text but has correction result, send it
+                  if (!promptText.trim() && correctedResult) {
+                    const cmd = correctedResult;
+                    const newHistory = [cmd, ...commandHistory.filter(c => c !== cmd)].slice(0, 50);
+                    setCommandHistory(newHistory);
+                    saveCommandHistory(newHistory);
+                    setCorrectedResult(null);
+                    if (onShowCorrection) {
+                      onShowCorrection(null as any);
+                    }
+                    setIsSending(true);
+                    setSendSuccess(false);
+                    sendCommandToTmux(cmd, selectedPane)
+                      .then(() => { setSendSuccess(true); setTimeout(() => setSendSuccess(false), 2000); })
+                      .catch(console.error)
+                      .finally(() => { setIsSending(false); setTimeout(() => textareaRef.current?.focus(), 50); });
+                    return;
+                  }
+                  
+                  // Otherwise, trigger correction
+                  const cmd = promptText.trim();
+                  if (cmd && token) {
+                    setPromptText('');
+                    saveDraft('');
+                    setIsCorrectingEnglish(true);
+                    fetch(getApiUrl('/api/correctEnglish'), {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text: cmd })
+                    })
+                      .then(res => res.json())
+                      .then(data => {
+                        if (data.success && data.result && typeof data.result === 'string') {
+                          setCorrectedResult(data.result);
+                          if (onShowCorrection) {
+                            onShowCorrection(data.result);
+                          }
+                        }
+                      })
+                      .catch(e => console.error('Correct English error:', e))
+                      .finally(() => setIsCorrectingEnglish(false));
+                  }
+                  return;
+                }
 
   
                if ((
@@ -348,9 +481,39 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                 } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !promptText) {
                   e.preventDefault();
                   await fetch(getApiUrl('/api/tmux/send-keys'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: "C-c" }) });
-                } else  if (e.key === 'Enter' && e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  handleSendPrompt();
+                } else  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  if (e.shiftKey) {
+                    // Shift+Enter = newline (default behavior)
+                    return;
+                  } else {
+                    // Enter = send directly (no correction)
+                    e.preventDefault();
+                    if (!promptText.trim() && correctedResult) {
+                      // Empty prompt + has result = fill prompt with result
+                      setPromptText(correctedResult);
+                      setCorrectedResult(null);
+                      if (onShowCorrection) {
+                        onShowCorrection(null as any);
+                      }
+                    } else {
+                      const cmd = promptText.trim();
+                      if (cmd) {
+                        const newHistory = [cmd, ...commandHistory.filter(c => c !== cmd)].slice(0, 50);
+                        setCommandHistory(newHistory);
+                        saveCommandHistory(newHistory);
+                        setHistoryIndex(-1);
+                        setTempDraft('');
+                        setPromptText('');
+                        saveDraft('');
+                        setIsSending(true);
+                        setSendSuccess(false);
+                        sendCommandToTmux(cmd, selectedPane)
+                          .then(() => { setSendSuccess(true); setTimeout(() => setSendSuccess(false), 2000); })
+                          .catch(console.error)
+                          .finally(() => { setIsSending(false); setTimeout(() => textareaRef.current?.focus(), 50); });
+                      }
+                    }
+                  }
                 } else if (e.key === 'ArrowUp') {
                   const textarea = e.currentTarget;
                   const isOnFirstLine = !textarea.value.substring(0, textarea.selectionStart).includes('\n');
@@ -486,116 +649,8 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
 
         </div>
       </form>
-      
     </FloatingPanel>
-{correctedText && (
-  <div 
-    className="fixed z-[50] animate-in fade-in zoom-in duration-200"
-    style={{ 
-      right: 40,
-      top: 40, // 增加一点间距
-      width: Math.max(currentSize.width, 320), // 确保不至于太窄
-    }}
-  >
-    {/* 主容器：玻璃拟态效果 */}
-    <div className="bg-gray-950/90 border border-purple-500/30 rounded-xl shadow-2xl backdrop-blur-md overflow-hidden flex flex-col p-4 ring-1 ring-white/10">
-      
-      {/* 头部：简洁且有品牌感 */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="p-1 bg-purple-500/20 rounded-md">
-            <Sparkles size={14} className="text-purple-400" />
-          </div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-purple-300/80">
-            AI Suggestion
-          </span>
-        </div>
-        <button 
-          onClick={() => setCorrectedText('')} 
-          className="p-1 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
-        >
-          <X size={16} />
-        </button>
-      </div>
 
-      {/* 内容区：高对比度、易读 */}
-      <div className="relative group mb-4">
-        <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-lg blur opacity-50"></div>
-        <p className="relative text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-black/40 border border-white/5 p-3 rounded-lg max-h-48 overflow-y-auto custom-scrollbar">
-          {correctedText}
-        </p>
-      </div>
-
-      {/* 操作区：主次分明 */}
-      <div className="flex gap-3">
-        <button 
-          onClick={() => setCorrectedText('')} 
-          className="flex-1 px-3 py-2 text-gray-400 hover:text-white text-xs font-medium transition-colors border border-transparent hover:border-white/10 rounded-lg"
-        >
-          Discard
-        </button>
-        <button 
-          onClick={handleAcceptCorrection} 
-          className="flex-[2] px-3 py-2 bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(147,51,234,0.3)]"
-        >
-          <Check size={14} strokeWidth={3} />
-          Apply Correction
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-
-    {/* 历史记录面板 */}
-    {showHistory && commandHistory.length > 0 && (
-      <div 
-        className="fixed bg-gray-900/95 border border-gray-700 rounded-lg shadow-xl backdrop-blur-sm z-[50] flex flex-col max-h-80"
-        style={{ 
-      right: 40,
-      top: 40, // 增加一点间距
-          width: currentSize.width
-        }}
-      >
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900/50 flex-shrink-0">
-          <span className="text-xs text-gray-400">History</span>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => {
-                const text = commandHistory.join('\n');
-                const blob = new Blob([text], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${paneTarget}_history_${Date.now()}.txt`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="text-xs text-blue-400 hover:text-blue-300"
-            >
-              Export
-            </button>
-            <button onClick={() => setCommandHistory([])} className="text-xs text-red-400 hover:text-red-300">Clear</button>
-            <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white"><X size={14} /></button>
-          </div>
-        </div>
-        <div className="divide-y divide-gray-800 overflow-y-auto">
-          {commandHistory.map((cmd, idx) => (
-            <div key={idx} onClick={() => { handleSelectHistory(cmd); setShowHistory(false); }}
-              className="px-3 py-2 hover:bg-gray-800 cursor-pointer text-gray-300 hover:text-white group">
-              <div className="flex items-center gap-2">
-                <History size={12} className="text-gray-500 flex-shrink-0" />
-                <span className="truncate text-sm flex-1">{cmd}</span>
-                <button onClick={(e) => { e.stopPropagation(); setCommandHistory(prev => prev.filter((_, i) => i !== idx)); }}
-                  className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
 
     {/* 队列显示面板 */}
     {queueLen > 0 && (

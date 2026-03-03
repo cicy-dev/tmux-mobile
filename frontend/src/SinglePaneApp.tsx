@@ -104,6 +104,10 @@ const App: React.FC = () => {
     return saved ? parseInt(saved) : 0;
   });
   const [boundAgents, setBoundAgents] = useState<string[]>([]);
+  const [showHistoryOverlay, setShowHistoryOverlay] = useState(false);
+  const [historyData, setHistoryData] = useState<{history: string[], onSelect: (cmd: string) => void} | null>(null);
+  const [showCorrectionResult, setShowCorrectionResult] = useState(false);
+  const [correctionData, setCorrectionData] = useState<string | null>(null);
   const [agentCaptureOpen, setAgentCaptureOpen] = useState(false);
   const [showTtydInCode, setShowTtydInCode] = useState(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_showTtydInCode`);
@@ -808,6 +812,53 @@ const App: React.FC = () => {
               className="w-full h-full"
               style={{height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%'}}
             />
+            {showHistoryOverlay && historyData && (
+              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1, display: 'flex', flexDirection: 'column'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #374151', backgroundColor: '#111827'}}>
+                  <span style={{fontSize: '14px', color: '#d1d5db', fontWeight: 500}}>Command History</span>
+                  <button onClick={() => setShowHistoryOverlay(false)} style={{color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer'}}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div style={{flex: 1, overflowY: 'auto'}}>
+                  {historyData.history.map((cmd, idx) => (
+                    <div 
+                      key={idx}
+                      style={{padding: '12px 16px', borderBottom: '1px solid #1f2937', cursor: 'pointer', color: '#d1d5db', backgroundColor: '#111827', display: 'flex', alignItems: 'center', gap: '8px'}}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1f2937';
+                        const btn = e.currentTarget.querySelector('.delete-btn') as HTMLElement;
+                        if (btn) btn.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#111827';
+                        const btn = e.currentTarget.querySelector('.delete-btn') as HTMLElement;
+                        if (btn) btn.style.opacity = '0';
+                      }}
+                    >
+                      <span 
+                        style={{fontSize: '14px', fontFamily: 'monospace', flex: 1}}
+                        onClick={() => {
+                          historyData.onSelect(cmd);
+                          setShowHistoryOverlay(false);
+                        }}
+                      >{cmd}</span>
+                      <button 
+                        className="delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newHistory = historyData.history.filter((_, i) => i !== idx);
+                          setHistoryData({...historyData, history: newHistory});
+                        }}
+                        style={{opacity: 0, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', transition: 'opacity 0.2s'}}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div 
               className="ttyd-mask absolute inset-0 bg-transparent z-10"
               style={{display: 'none', pointerEvents: 'auto'}}
@@ -821,6 +872,68 @@ const App: React.FC = () => {
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
           {MODE === 'ttyd' && hasPermission('prompt') && (
             <div className="absolute bottom-0 left-0 right-0" style={{height: `${commandPanelHeight}px`}}>
+              {/* Correction Result */}
+              {showCorrectionResult && correctionData && (
+                <div style={{position: 'absolute', bottom: `${commandPanelHeight + 4}px`, left: 0, right: 0, height: "120px"}}>
+                  <div style={{width: '100%', height: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', position: 'relative'}}>
+                    <button 
+                      onClick={() => setShowCorrectionResult(false)}
+                      style={{position: 'absolute', top: '8px', right: '8px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'all 0.2s', zIndex: 10}}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#374151';
+                        e.currentTarget.style.color = '#e5e7eb';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#6b7280';
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <div style={{flex: 1, display: 'flex', flexDirection: 'column'}}>
+                      <div 
+                        style={{flex: 1, padding: '16px', backgroundColor: '#111827', borderBottom: '1px solid #374151', overflowY: 'auto', position: 'relative', display: 'flex', alignItems: 'center'}}
+                        onMouseEnter={(e) => {
+                          const btns = e.currentTarget.querySelector('.action-btns') as HTMLElement;
+                          if (btns) btns.style.opacity = '1';
+                        }}
+                        onMouseLeave={(e) => {
+                          const btns = e.currentTarget.querySelector('.action-btns') as HTMLElement;
+                          if (btns) btns.style.opacity = '0';
+                        }}
+                      >
+                        <div style={{fontSize: '15px', color: '#f9fafb', fontFamily: 'monospace', lineHeight: '1.6'}}>{correctionData}</div>
+                        <div className="action-btns" style={{opacity: 0, position: 'absolute', bottom: '12px', right: '12px', display: 'flex', gap: '6px', transition: 'opacity 0.2s'}}>
+                          <button 
+                            onClick={() => {
+                              commandPanelRef.current?.setPrompt(correctionData);
+                              setShowCorrectionResult(false);
+                            }}
+                            style={{padding: '6px 12px', backgroundColor: '#374151', color: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 500, transition: 'all 0.2s'}}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4b5563'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#374151'}
+                          >Edit</button>
+                          <button 
+                            onClick={async () => {
+                              await fetch(getApiUrl('/api/tmux/send'), {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
+                                body: JSON.stringify({win_id: TMUX_TARGET, text: correctionData})
+                              });
+                              
+                              setShowCorrectionResult(false);
+                            }}
+                            style={{padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 500, transition: 'all 0.2s'}}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                          >Send</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div 
                 className="absolute top-0 left-0 right-0 h-1 bg-gray-600 hover:bg-blue-500 cursor-row-resize"
                 style={{zIndex: 9999999}}
@@ -858,6 +971,22 @@ const App: React.FC = () => {
                 onCapturePane={handleCapturePane}
                 isCapturing={isCapturing}
                 canSend={agentStatus === 'idle' || agentStatus === 'wait_startup'}
+                mode={MODE}
+                onShowHistory={(history, onSelect) => {
+                  setHistoryData({history, onSelect});
+                  setShowHistoryOverlay(true);
+                  setShowCorrectionResult(false);
+                }}
+                onShowCorrection={(result) => {
+                  if (result === null) {
+                    setCorrectionData(null);
+                    setShowCorrectionResult(false);
+                  } else {
+                    setCorrectionData(result);
+                    setShowCorrectionResult(true);
+                    setShowHistoryOverlay(false);
+                  }
+                }}
                 agentStatus={agentStatus}
                 contextUsage={contextUsage}
                 mouseMode={mouseMode}
