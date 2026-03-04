@@ -47,6 +47,7 @@ declare global {
 
 const App: React.FC = () => {
   const MODE = new URLSearchParams(window.location.search).get('mode') || null;
+
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -573,9 +574,54 @@ const App: React.FC = () => {
     <div className="relative w-screen h-screen overflow-hidden font-sans" >
      
       
-      
+      {/* Title bar — hidden by default, click menu btn to show */}
+      {MODE !== 'ttyd' && !captureOutput && !agentCaptureOpen && !editingPane && (
+      <div
+        id="fixTopbar"
+        className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 transition-transform duration-200 rounded-lg"
+        style={{position:"fixed",zIndex:99999998,top:8,right:8,width:90,height:32}}
+      >
+        <div className="h-full flex items-center justify-center px-3 gap-1">
+          {hasPermission('prompt') && (
+            <button
+              onClick={() => {
+                  if(settings.showVoiceControl){
+                    setSettings(prev => ({ ...prev,showVoiceControl:false, showPrompt: !prev.showPrompt }))
+                  }else{
+                    setSettings(prev => ({ ...prev, showPrompt: !prev.showPrompt }))
+                  }
+              }}
+              className={`p-1.5 rounded transition-colors ${settings.showPrompt ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              title={settings.showPrompt ? "Hide command panel" : "Show command panel"}
+            >
+              <Keyboard size={14} />
+            </button>
+            )}
+            {hasPermission('prompt') && (
+            <button
+              onClick={() => {
+                if(settings.showPrompt){
+                  setSettings(prev => ({ ...prev, showPrompt:false,showVoiceControl: !prev.showVoiceControl}))
+                }else{
+                  setSettings(prev => ({ ...prev, showVoiceControl: !prev.showVoiceControl}))
+                }
+                
+              }}
+              className={`p-1.5 rounded transition-colors ${settings.showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              title={settings.showVoiceControl ? "Hide voice mode" : "Show voice mode"}
+            >
+              <Mic size={14} />
+            </button>
+            )}
+        </div>
+      </div>
+      )}
+
+
+
+
       {/* Floating command panel */}
-      {settings.showPrompt && hasPermission('prompt') && (
+      {MODE !== 'ttyd' && settings.showPrompt && hasPermission('prompt') && (
         <CommandPanel
           ref={commandPanelRef}
           paneTarget={TMUX_TARGET}
