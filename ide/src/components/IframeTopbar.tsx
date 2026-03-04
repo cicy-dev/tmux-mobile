@@ -19,11 +19,11 @@ export const IframeTopbar: React.FC<IframeTopbarProps> = ({
   rightActions,
 }) => {
   return (
-    <div className="absolute top-0 left-0 right-0 h-10 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 flex items-center justify-between px-3 z-30">
+    <div className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar/80 backdrop-blur-sm border-b border-vsc-border-subtle flex items-center justify-between px-3 z-30">
       <div className="flex items-center gap-2 min-w-0 mr-2">
         <span className="text-xs text-white font-medium truncate">{title}</span>
         {workspace && (
-          <span className="text-xs text-gray-400 truncate">📁 {workspace}</span>
+          <span className="text-xs text-vsc-text-secondary truncate">📁 {workspace}</span>
         )}
         {proxy && (
           <span className="text-xs text-orange-400 truncate hidden md:block" title={`Proxy: ${proxy}`}>🌐 proxy</span>
@@ -38,7 +38,7 @@ export const IframeTopbar: React.FC<IframeTopbarProps> = ({
           {networkStatus === 'good' && <Wifi size={12} className="text-yellow-400" />}
           {networkStatus === 'poor' && <Wifi size={12} className="text-orange-400" />}
           {networkStatus === 'offline' && <WifiOff size={12} className="text-red-400" />}
-          <span className="text-xs text-gray-500 font-mono">
+          <span className="text-xs text-vsc-text-muted font-mono">
             {networkLatency !== null ? `${networkLatency}ms` : 'offline'}
           </span>
         </div>

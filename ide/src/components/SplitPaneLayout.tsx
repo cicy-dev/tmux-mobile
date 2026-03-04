@@ -87,9 +87,9 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({
 
       {/* Divider */}
       <div
-        className={`relative flex-shrink-0 bg-gray-700 hover:bg-blue-500 transition-colors ${
+        className={`relative flex-shrink-0 bg-vsc-border hover:bg-vsc-accent transition-colors ${
           isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'
-        } ${isDragging ? 'bg-blue-500' : ''} group`}
+        } ${isDragging ? 'bg-vsc-accent' : ''} group`}
         onMouseDown={handleMouseDown}
       >
         <div
@@ -99,7 +99,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({
               : 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
           } opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}
         >
-          <div className={`bg-gray-900 rounded-full p-1 ${isHorizontal ? '' : 'rotate-90'}`}>
+          <div className={`bg-vsc-bg rounded-full p-1 ${isHorizontal ? '' : 'rotate-90'}`}>
             <GripVertical size={16} className="text-white" />
           </div>
         </div>

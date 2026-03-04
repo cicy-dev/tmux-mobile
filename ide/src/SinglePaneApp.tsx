@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power } from 'lucide-react';
+import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Home } from 'lucide-react';
 import { IframeTopbar } from './components/IframeTopbar';
 import { TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
@@ -12,6 +12,7 @@ import { AgentsListView } from './components/AgentsListView';
 import { CaptureDialog } from './components/CaptureDialog';
 import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
+import { WebFrame } from './components/WebFrame';
 
 // Read URL query params
 const BOT_NAME = decodeURIComponent(window.location.href.split("/")[4])
@@ -80,8 +81,6 @@ const App: React.FC = () => {
     return saved ? parseInt(saved) : 220;
   });
   const [isDragging, setIsDragging] = useState(false);
-  const [isCodeServerLoading, setIsCodeServerLoading] = useState(true);
-  const [isTtydLoading, setIsTtydLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'Agents' | 'Settings'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_activeTab`);
     return (saved as any) || 'Settings';
@@ -459,14 +458,15 @@ const App: React.FC = () => {
     if (!confirm(`Restart tmux and ttyd for ${targetPane}?`)) return;
     setIsRestarting(true);
     try {
-      await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(targetPane)}/restart`, {
+      const paneIdClean = targetPane.replace(':main.0', '');
+      await fetch(`${API_BASE}/api/tmux/panes/${encodeURIComponent(paneIdClean)}/restart`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
       for (let i = 0; i < 30; i++) {
         await new Promise(r => setTimeout(r, 1000));
         try {
-          const res = await fetch(`${API_BASE}/api/ttyd/status/${encodeURIComponent(targetPane)}`, {
+          const res = await fetch(`${API_BASE}/api/ttyd/status/${encodeURIComponent(paneIdClean)}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (res.ok) {
@@ -478,7 +478,8 @@ const App: React.FC = () => {
           }
         } catch {}
       }
-      alert('Restart timeout');
+      // Even on timeout, reload — the service likely restarted
+      setTimeout(() => location.reload(), 500);
     } catch (e) {
       console.error(e);
       alert('Restart failed');
@@ -556,14 +557,14 @@ const App: React.FC = () => {
 
   // --- Render ---
   if (isCheckingAuth) return (
-    <div className="bg-black w-screen h-screen flex items-center justify-center">
-      <Loader2 size={48} className="text-blue-500 animate-spin" />
+    <div className="bg-vsc-bg w-screen h-screen flex items-center justify-center">
+      <Loader2 size={48} className="text-vsc-accent animate-spin" />
     </div>
   );
 
   if (!token) return <LoginForm onLogin={handleLogin} />;
 
-  if (!isLoaded) return <div className="bg-black w-screen h-screen" />;
+  if (!isLoaded) return <div className="bg-vsc-bg w-screen h-screen" />;
 
 
   return (
@@ -571,8 +572,8 @@ const App: React.FC = () => {
       {
         MODE === "ttyd" && <div id="mainIfame" className="fixed inset-0"> 
 
-        <div id="mainCodeServer" className="absolute inset-0 bg-white" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
-          <div className="absolute top-0 left-0 right-0 h-10 bg-gray-800 flex items-center gap-1 px-2 z-10">
+        <div id="mainCodeServer" className="absolute inset-0 bg-vsc-bg" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
+          <div className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center gap-1 px-2 z-10">
             {([ 'Code','Settings', 'Agents', 'Preview'] as const).map(tab => (
               <button
                 key={tab}
@@ -580,21 +581,39 @@ const App: React.FC = () => {
                   setActiveTab(tab);
                   localStorage.setItem(`${BOT_NAME}_activeTab`, tab);
                 }}
-                className={`px-4 py-1 rounded text-sm ${activeTab === tab ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`px-4 py-1 rounded text-sm ${activeTab === tab ? 'bg-vsc-bg text-vsc-text' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover'}`}
               >
                 {tab}
               </button>
             ))}
           </div>
-          {isCodeServerLoading && activeTab === 'Code' && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
+          <div className="absolute left-0 right-0 h-8 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center px-2 gap-2" style={{top: '40px'}}>
+            <button 
+              onClick={() => alert('/home/w3c_offical')}
+              className="p-1 text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover rounded"
+              title="Home"
+            >
+              <Home size={16} />
+            </button>
+            <input 
+              className="flex-1 bg-vsc-bg text-vsc-text px-2 py-1 text-sm border border-vsc-border rounded" 
+              value={paneWorkspace} 
+              readOnly 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  alert(paneWorkspace);
+                }
+              }}
+            />
+          </div>
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
             {paneWorkspace && (
-              <div className="absolute inset-0" style={{marginTop: '40px', display: activeTab === 'Code' ? 'block' : 'none'}}>
-                <iframe loading="lazy" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts" onLoad={() => setIsCodeServerLoading(false)} src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="code-server-iframe w-full h-full" style={{height: paneTtydPreview && showTtydInCode ? `calc(100% - ${ttydPreviewHeight}px)` : '100%'}}></iframe>
+              <div className="absolute inset-0" style={{marginTop: '72px', display: activeTab === 'Code' ? 'block' : 'none'}}>
+                <WebFrame codeServer loading="lazy" src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="code-server-iframe w-full h-full" style={{height: paneTtydPreview && showTtydInCode ? `calc(100% - ${ttydPreviewHeight}px)` : '100%'}} />
                 {paneTtydPreview && showTtydInCode && (
                   <>
                     <div 
-                      className="absolute left-0 right-0 h-1 bg-gray-600 hover:bg-blue-500 cursor-row-resize z-10"
+                      className="absolute left-0 right-0 h-1 bg-vsc-border hover:bg-vsc-accent cursor-row-resize z-10"
                       style={{bottom: `${ttydPreviewHeight}px`}}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -616,12 +635,12 @@ const App: React.FC = () => {
                       }}
                     ></div>
                     {isDragging && <div className="absolute inset-0 z-20"></div>}
-                    <div className="ttyd-preview-container absolute bottom-0 left-0 right-0 bg-gray-800" style={{height: `${ttydPreviewHeight}px`}}>
-                      <div className="h-8 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-3">
-                        <span className="text-xs text-gray-400">Terminal Preview</span>
+                    <div className="ttyd-preview-container absolute bottom-0 left-0 right-0 bg-vsc-bg-secondary" style={{height: `${ttydPreviewHeight}px`}}>
+                      <div className="h-8 bg-vsc-bg-secondary border-t border-vsc-border flex items-center justify-between px-3">
+                        <span className="text-xs text-vsc-text-secondary">Terminal Preview</span>
                         <div className="flex gap-2">
                           <button
-                            className="show-btn hidden text-blue-400 hover:text-blue-300 text-xs"
+                            className="show-btn hidden text-vsc-link hover:text-blue-300 text-xs"
                             onClick={() => {
                               const container = document.querySelector('.ttyd-preview-container') as HTMLElement;
                               const codeIframe = document.querySelector('.code-server-iframe') as HTMLElement;
@@ -640,7 +659,7 @@ const App: React.FC = () => {
                             Show
                           </button>
                           <button
-                            className="min-btn text-gray-400 hover:text-white"
+                            className="min-btn text-vsc-text-secondary hover:text-vsc-text"
                             style={{marginTop: '-10px'}}
                             title="Minimize"
                             onClick={() => {
@@ -662,8 +681,7 @@ const App: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                      <iframe
-                        sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                      <WebFrame
                         src={`https://ttyd-proxy.cicy.de5.net/ttyd/${paneTtydPreview.replace(':main.0', '')}?token=${token}&m=1&mode=1`}
                         className="w-full"
                         style={{height: 'calc(100% - 32px)'}}
@@ -677,16 +695,16 @@ const App: React.FC = () => {
           {activeTab === 'Preview' && (
             <>
               {previewUrls.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full bg-gray-900" style={{marginTop: '40px'}}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600 mb-4">
+                <div className="flex flex-col items-center justify-center h-full bg-vsc-bg" style={{marginTop: '72px'}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-vsc-text-muted mb-4">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="m21 21-4.35-4.35"/>
                   </svg>
-                  <p className="text-gray-500 text-sm">No preview URLs found</p>
+                  <p className="text-vsc-text-muted text-sm">No preview URLs found</p>
                 </div>
               ) : (
                 <>
-                  <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#1f2937', borderBottom: '1px solid #374151', display: 'flex', gap: '4px', padding: '4px'}}>
+                  <div style={{position: 'absolute', top: '72px', left: 0, right: 0, height: '32px', background: '#2a2d2e', borderBottom: '1px solid #474747', display: 'flex', gap: '4px', padding: '4px'}}>
                     {previewUrls.map((item: any, idx) => (
                       <button
                         key={idx}
@@ -697,8 +715,8 @@ const App: React.FC = () => {
                         style={{
                           padding: '4px 12px',
                           fontSize: '13px',
-                          background: previewTab === idx ? '#374151' : 'transparent',
-                          color: previewTab === idx ? '#fff' : '#9ca3af',
+                          background: previewTab === idx ? '#474747' : 'transparent',
+                          color: previewTab === idx ? '#fff' : '#858585',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: 'pointer'
@@ -709,10 +727,8 @@ const App: React.FC = () => {
                     ))}
                   </div>
                   {previewUrls.map((item: any, idx) => (
-                    <div key={idx} className="absolute inset-0" style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}>
-                      <iframe
-                        sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-                        onLoad={() => setIsCodeServerLoading(false)}
+                    <div key={idx} className="absolute inset-0" style={{marginTop: '104px', display: previewTab === idx ? 'block' : 'none'}}>
+                      <WebFrame
                         src={item.url || item}
                         className="w-full h-full"
                       />
@@ -724,12 +740,12 @@ const App: React.FC = () => {
             </>
           )}
           {activeTab === 'Agents' && (
-            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
+            <div style={{marginTop: '72px', height: 'calc(100% - 72px)'}}>
               <AgentsListView paneId={BOT_NAME} token={token} ttydPreview={paneTtydPreview} isDragging={isDragging} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
             </div>
           )}
           {activeTab === 'Settings' && (
-            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
+            <div style={{marginTop: '72px', height: 'calc(100% - 72px)'}}>
               <SettingsView 
                 pane={{
                   target: TMUX_TARGET, 
@@ -776,7 +792,7 @@ const App: React.FC = () => {
           {isDragging && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 z-20"></div>}
         </div>
         <div id="drag" 
-          className="absolute inset-y-0 w-1 bg-gray-600 hover:bg-blue-500 cursor-col-resize z-10"
+          className="absolute inset-y-0 w-1 bg-vsc-border hover:bg-vsc-accent cursor-col-resize z-10"
           style={{left: `calc(100vw - ${ttydWidth}px - 4px)`}}
           onMouseDown={(e) => {
             e.preventDefault();
@@ -808,7 +824,6 @@ const App: React.FC = () => {
             if (target) target.style.display = 'block';
           }}
         >
-          {isTtydLoading && <div className="absolute inset-0 flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin" /></div>}
           <IframeTopbar
             title={paneTitle || BOT_NAME}
             workspace={paneWorkspace}
@@ -819,15 +834,15 @@ const App: React.FC = () => {
                 <button type="button" onClick={async () => {
                   const paneId = BOT_NAME.replace(':main.0', '');
                   await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-colors" title="会话选择">^bs</button>
+                }} className="px-1.5 py-0.5 bg-vsc-bg-active hover:bg-vsc-bg-active text-white text-xs rounded transition-colors" title="会话选择">^bs</button>
                 <button type="button" onClick={async () => {
                   const paneId = BOT_NAME.replace(':main.0', '');
                   await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="p-1 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors" title="水平分屏(上下)"><SplitSquareVertical size={12} /></button>
+                }} className="p-1 bg-vsc-button hover:bg-vsc-button text-white rounded transition-colors" title="水平分屏(上下)"><SplitSquareVertical size={12} /></button>
                 <button type="button" onClick={async () => {
                   const paneId = BOT_NAME.replace(':main.0', '');
                   await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="p-1 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors" title="垂直分屏(左右)"><SplitSquareHorizontal size={12} /></button>
+                }} className="p-1 bg-vsc-button hover:bg-vsc-button text-white rounded transition-colors" title="垂直分屏(左右)"><SplitSquareHorizontal size={12} /></button>
                 <button type="button" onClick={async () => {
                   const paneId = BOT_NAME.replace(':main.0', '');
                   await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
@@ -836,7 +851,7 @@ const App: React.FC = () => {
                   if (mainIframeRef.current) {
                     mainIframeRef.current.src = mainIframeRef.current.src;
                   }
-                }} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Reload page"><RotateCcw size={12} /></button>
+                }} className="p-1 rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active transition-colors" title="Reload page"><RotateCcw size={12} /></button>
                 {hasPermission('prompt') && (
                   <button type="button" onClick={() => handleRestart()} className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors" title="Restart tmux and ttyd">
                     <Power size={12} className={isRestarting ? 'animate-pulse' : ''} />
@@ -846,20 +861,18 @@ const App: React.FC = () => {
             }
           />
           <div className="relative w-full" style={{height: 'calc(100% - 40px)', marginTop: '40px'}}>
-            <iframe
+            <WebFrame
               ref={mainIframeRef}
               loading="lazy"
-              sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-              onLoad={() => setIsTtydLoading(false)}
               src={`https://ttyd-proxy.cicy.de5.net/ttyd/${BOT_NAME}/?token=${token}&mode=1`}
               className="w-full h-full"
               style={{height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%'}}
             />
             {showHistoryOverlay && historyData && (
               <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1, display: 'flex', flexDirection: 'column'}}>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #374151', backgroundColor: '#111827'}}>
-                  <span style={{fontSize: '14px', color: '#d1d5db', fontWeight: 500}}>Command History</span>
-                  <button onClick={() => setShowHistoryOverlay(false)} style={{color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #474747', backgroundColor: '#1e1e1e'}}>
+                  <span style={{fontSize: '14px', color: '#cccccc', fontWeight: 500}}>Command History</span>
+                  <button onClick={() => setShowHistoryOverlay(false)} style={{color: '#858585', background: 'none', border: 'none', cursor: 'pointer'}}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
@@ -867,14 +880,14 @@ const App: React.FC = () => {
                   {historyData.history.map((cmd, idx) => (
                     <div 
                       key={idx}
-                      style={{padding: '12px 16px', borderBottom: '1px solid #1f2937', cursor: 'pointer', color: '#d1d5db', backgroundColor: '#111827', display: 'flex', alignItems: 'center', gap: '8px'}}
+                      style={{padding: '12px 16px', borderBottom: '1px solid #2a2d2e', cursor: 'pointer', color: '#cccccc', backgroundColor: '#1e1e1e', display: 'flex', alignItems: 'center', gap: '8px'}}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#1f2937';
+                        e.currentTarget.style.backgroundColor = '#2a2d2e';
                         const btn = e.currentTarget.querySelector('.delete-btn') as HTMLElement;
                         if (btn) btn.style.opacity = '1';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#111827';
+                        e.currentTarget.style.backgroundColor = '#1e1e1e';
                         const btn = e.currentTarget.querySelector('.delete-btn') as HTMLElement;
                         if (btn) btn.style.opacity = '0';
                       }}
@@ -918,29 +931,29 @@ const App: React.FC = () => {
               {/* Correction Result */}
               {showCorrectionResult && correctionData ? (
                 <div style={{position: 'absolute', bottom: `${commandPanelHeight + 4}px`, left: 0, right: 0, maxHeight: "300px", minHeight: "140px"}}>
-                  <div style={{width: '100%', height: '100%', backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative'}}>
+                  <div style={{width: '100%', height: '100%', backgroundColor: '#1e1e1e', border: '1px solid #474747', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative'}}>
                     {/* Top bar */}
-                    <div style={{height: '32px', backgroundColor: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', flexShrink: 0}}>
-                      <span style={{fontSize: '12px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.5px'}}>CORRECTION</span>
+                    <div style={{height: '32px', backgroundColor: '#252526', borderBottom: '1px solid #474747', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', flexShrink: 0}}>
+                      <span style={{fontSize: '12px', color: '#858585', fontWeight: 600, letterSpacing: '0.5px'}}>CORRECTION</span>
                       <button 
                         onClick={() => setShowCorrectionResult(false)}
-                        style={{color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
+                        style={{color: '#6a6a6a', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#334155';
-                          e.currentTarget.style.color = '#cbd5e1';
+                          e.currentTarget.style.backgroundColor = '#474747';
+                          e.currentTarget.style.color = '#cccccc';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = '#64748b';
+                          e.currentTarget.style.color = '#6a6a6a';
                         }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </button>
                     </div>
-                    <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '1px', backgroundColor: '#334155', overflow: 'hidden'}}>
+                    <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '1px', backgroundColor: '#474747', overflow: 'hidden'}}>
                       {/* English */}
                       <div 
-                        style={{flex: 1, padding: '16px', backgroundColor: '#0f172a', position: 'relative', overflowY: 'auto'}}
+                        style={{flex: 1, padding: '16px', backgroundColor: '#1e1e1e', position: 'relative', overflowY: 'auto'}}
                         onMouseEnter={(e) => {
                           const btns = e.currentTarget.querySelector('.action-btns') as HTMLElement;
                           if (btns) btns.style.setProperty('opacity', '1', 'important');
@@ -950,13 +963,13 @@ const App: React.FC = () => {
                           if (btns) btns.style.setProperty('opacity', '0', 'important');
                         }}
                       >
-                        <div style={{fontSize: '15px', color: '#e2e8f0', fontFamily: 'monospace', lineHeight: '1.6', fontWeight: 500, paddingRight: '60px'}}>{correctionData?.[0]}</div>
+                        <div style={{fontSize: '15px', color: '#cccccc', fontFamily: 'monospace', lineHeight: '1.6', fontWeight: 500, paddingRight: '60px'}}>{correctionData?.[0]}</div>
                         <div className="action-btns" style={{opacity: 0, position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px', transition: 'opacity 0.2s'}}>
                           <button 
                             onClick={() => navigator.clipboard.writeText(correctionData?.[0] || '')}
-                            style={{padding: '6px', backgroundColor: '#1e293b', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
-                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#334155'; e.currentTarget.style.color = '#cbd5e1';}}
-                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8';}}
+                            style={{padding: '6px', backgroundColor: '#252526', color: '#858585', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
+                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#474747'; e.currentTarget.style.color = '#cccccc';}}
+                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#252526'; e.currentTarget.style.color = '#858585';}}
                             title="Copy"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -966,9 +979,9 @@ const App: React.FC = () => {
                               commandPanelRef.current?.setPrompt(correctionData?.[0] || '');
                               setShowCorrectionResult(false);
                             }}
-                            style={{padding: '6px', backgroundColor: '#1e293b', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
-                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#334155'; e.currentTarget.style.color = '#cbd5e1';}}
-                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8';}}
+                            style={{padding: '6px', backgroundColor: '#252526', color: '#858585', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
+                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#474747'; e.currentTarget.style.color = '#cccccc';}}
+                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#252526'; e.currentTarget.style.color = '#858585';}}
                             title="Edit"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -977,7 +990,7 @@ const App: React.FC = () => {
                       </div>
                       {/* Chinese */}
                       <div 
-                        style={{flex: 1, padding: '16px', backgroundColor: '#1e293b', position: 'relative', overflowY: 'auto'}}
+                        style={{flex: 1, padding: '16px', backgroundColor: '#252526', position: 'relative', overflowY: 'auto'}}
                         onMouseEnter={(e) => {
                           const btns = e.currentTarget.querySelector('.action-btns-cn') as HTMLElement;
                           if (btns) btns.style.setProperty('opacity', '1', 'important');
@@ -987,13 +1000,13 @@ const App: React.FC = () => {
                           if (btns) btns.style.setProperty('opacity', '0', 'important');
                         }}
                       >
-                        <div style={{fontSize: '15px', color: '#94a3b8', fontFamily: 'monospace', lineHeight: '1.6', paddingRight: '60px'}}>{correctionData?.[1]}</div>
+                        <div style={{fontSize: '15px', color: '#858585', fontFamily: 'monospace', lineHeight: '1.6', paddingRight: '60px'}}>{correctionData?.[1]}</div>
                         <div className="action-btns-cn" style={{opacity: 0, position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px', transition: 'opacity 0.2s'}}>
                           <button 
                             onClick={() => navigator.clipboard.writeText(correctionData?.[1] || '')}
-                            style={{padding: '6px', backgroundColor: '#1e293b', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
-                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#334155'; e.currentTarget.style.color = '#cbd5e1';}}
-                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8';}}
+                            style={{padding: '6px', backgroundColor: '#252526', color: '#858585', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
+                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#474747'; e.currentTarget.style.color = '#cccccc';}}
+                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#252526'; e.currentTarget.style.color = '#858585';}}
                             title="Copy"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -1003,9 +1016,9 @@ const App: React.FC = () => {
                               commandPanelRef.current?.setPrompt(correctionData?.[1] || '');
                               setShowCorrectionResult(false);
                             }}
-                            style={{padding: '6px', backgroundColor: '#1e293b', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
-                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#334155'; e.currentTarget.style.color = '#cbd5e1';}}
-                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8';}}
+                            style={{padding: '6px', backgroundColor: '#252526', color: '#858585', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center'}}
+                            onMouseEnter={(e) => {e.currentTarget.style.backgroundColor = '#474747'; e.currentTarget.style.color = '#cccccc';}}
+                            onMouseLeave={(e) => {e.currentTarget.style.backgroundColor = '#252526'; e.currentTarget.style.color = '#858585';}}
                             title="Edit"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1018,7 +1031,7 @@ const App: React.FC = () => {
               ) : null}
               
               <div 
-                className="absolute top-0 left-0 right-0 h-1 bg-gray-600 hover:bg-blue-500 cursor-row-resize"
+                className="absolute top-0 left-0 right-0 h-1 bg-vsc-border hover:bg-vsc-accent cursor-row-resize"
                 style={{zIndex: 9999999}}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -1109,7 +1122,7 @@ const App: React.FC = () => {
       {MODE !== 'ttyd' && !captureOutput && !agentCaptureOpen && !editingPane && (
       <div
         id="fixTopbar"
-        className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 transition-transform duration-200 rounded-lg"
+        className="bg-vsc-bg/80 backdrop-blur-sm border border-vsc-border-subtle transition-transform duration-200 rounded-lg"
         style={{position:"fixed",zIndex:99999998,top:8,right:8,width:90,height:32}}
       >
         <div className="h-full flex items-center justify-center px-3 gap-1">
@@ -1122,7 +1135,7 @@ const App: React.FC = () => {
                     setSettings(prev => ({ ...prev, showPrompt: !prev.showPrompt }))
                   }
               }}
-              className={`p-1.5 rounded transition-colors ${settings.showPrompt ? 'text-blue-400 bg-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              className={`p-1.5 rounded transition-colors ${settings.showPrompt ? 'text-vsc-link bg-blue-500/20' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active'}`}
               title={settings.showPrompt ? "Hide command panel" : "Show command panel"}
             >
               <Keyboard size={14} />
@@ -1138,7 +1151,7 @@ const App: React.FC = () => {
                 }
                 
               }}
-              className={`p-1.5 rounded transition-colors ${settings.showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              className={`p-1.5 rounded transition-colors ${settings.showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active'}`}
               title={settings.showVoiceControl ? "Hide voice mode" : "Show voice mode"}
             >
               <Mic size={14} />
@@ -1171,7 +1184,7 @@ const App: React.FC = () => {
           agentStatus={agentStatus}
           contextUsage={contextUsage}
           mouseMode={mouseMode}
-          onDraggingChange={setIsDragging}
+          onDraggingChange={setIsw1Dragging}
           isTogglingMouse={isTogglingMouse}
           onToggleMouse={handleToggleMouse}
           onReload={() => {
@@ -1240,7 +1253,7 @@ const App: React.FC = () => {
 
       {/* Toast notification */}
       {toast && (
-        <div className="fixed bottom-4 left-4 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400" style={{zIndex: 999999999}}>
+        <div className="fixed bottom-4 left-4 px-4 py-2 bg-vsc-button text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400" style={{zIndex: 999999999}}>
           {toast}
         </div>
       )}

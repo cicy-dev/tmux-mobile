@@ -90,21 +90,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-900">
-        <Loader2 className="animate-spin text-gray-400" />
+      <div className="flex items-center justify-center h-full bg-vsc-bg">
+        <Loader2 className="animate-spin text-vsc-text-secondary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 p-4">
+    <div className="flex flex-col h-full bg-vsc-bg p-4">
       <h2 className="text-lg font-semibold text-white mb-4">Bound Agents</h2>
       
       <div className="flex gap-2 mb-4">
         <select
           value={selectedAgent}
           onChange={(e) => setSelectedAgent(e.target.value)}
-          className="flex-1 bg-gray-800 border border-gray-600 text-white text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-vsc-bg-secondary border border-vsc-border text-vsc-text text-sm rounded px-3 py-2 focus:outline-none focus:border-vsc-accent"
         >
           <option value="">Select an agent...</option>
           {allAgents.filter(agent => !agent.name.startsWith('ttyd_preview')).map(agent => (
@@ -114,7 +114,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
         <button
           onClick={handleAddAgent}
           disabled={!selectedAgent}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2"
+          className="bg-vsc-button hover:bg-vsc-button-hover disabled:bg-vsc-bg-active disabled:cursor-not-allowed text-white px-4 py-2 rounded flex items-center gap-2"
         >
           <Plus size={16} /> Add
         </button>
@@ -122,7 +122,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
 
       <div className="space-y-2 overflow-y-auto">
         {agents.filter(agent => !agent.name.startsWith('ttyd_preview')).length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 text-vsc-text-muted">
             <svg className="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
@@ -130,10 +130,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
           </div>
         ) : (
           agents.filter(agent => !agent.name.startsWith('ttyd_preview')).map(agent => (
-            <div key={agent.id} className="bg-gray-800 border border-gray-700 rounded p-3 flex items-center justify-between">
+            <div key={agent.id} className="bg-vsc-bg-secondary border border-vsc-border rounded p-3 flex items-center justify-between">
               <div>
                 <p className="text-white font-medium">{agent.name}</p>
-                <p className="text-xs text-gray-400">{agent.status}</p>
+                <p className="text-xs text-vsc-text-secondary">{agent.status}</p>
               </div>
               <button
                 onClick={() => handleRemoveAgent(agent.id)}

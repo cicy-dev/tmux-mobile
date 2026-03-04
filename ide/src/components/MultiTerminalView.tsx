@@ -91,7 +91,7 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
   const renderLayout = () => {
     if (terminals.length === 0) {
       return (
-        <div className="w-full h-full flex items-center justify-center text-gray-500">
+        <div className="w-full h-full flex items-center justify-center text-vsc-text-muted">
           No terminals
         </div>
       );
@@ -112,7 +112,7 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
           {terminals.length > 2 ? (
             <div className="w-full h-full flex flex-col">
               {terminals.slice(1).map(t => (
-                <div key={t.id} className="flex-1 border-t border-gray-700">
+                <div key={t.id} className="flex-1 border-t border-vsc-border">
                   {renderTerminal(t)}
                 </div>
               ))}
@@ -135,7 +135,7 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
           {terminals.length > 2 ? (
             <div className="w-full h-full flex">
               {terminals.slice(1).map(t => (
-                <div key={t.id} className="flex-1 border-l border-gray-700">
+                <div key={t.id} className="flex-1 border-l border-vsc-border">
                   {renderTerminal(t)}
                 </div>
               ))}
@@ -149,7 +149,7 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
 
     if (layoutMode === 'grid') {
       return (
-        <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-px bg-gray-700">
+        <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-px bg-vsc-border">
           {terminals.slice(0, 4).map(t => renderTerminal(t))}
         </div>
       );
@@ -166,13 +166,13 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
       <div className="absolute top-4 right-4 z-20 flex gap-2">
         {/* Layout Switcher */}
         {terminals.length > 1 && (
-          <div className="flex gap-1 bg-gray-900/90 backdrop-blur-sm rounded-lg p-1 border border-gray-700">
+          <div className="flex gap-1 bg-vsc-bg/90 backdrop-blur-sm rounded-lg p-1 border border-vsc-border">
             <button
               onClick={() => setLayoutMode('horizontal')}
               className={`p-2 rounded transition-colors ${
                 layoutMode === 'horizontal'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                  ? 'bg-vsc-button text-white'
+                  : 'text-vsc-text-secondary hover:bg-vsc-bg-active hover:text-vsc-text'
               }`}
               title="Horizontal Split"
             >
@@ -183,8 +183,8 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
               onClick={() => setLayoutMode('vertical')}
               className={`p-2 rounded transition-colors ${
                 layoutMode === 'vertical'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                  ? 'bg-vsc-button text-white'
+                  : 'text-vsc-text-secondary hover:bg-vsc-bg-active hover:text-vsc-text'
               }`}
               title="Vertical Split"
             >
@@ -196,8 +196,8 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
                 onClick={() => setLayoutMode('grid')}
                 className={`p-2 rounded transition-colors ${
                   layoutMode === 'grid'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-vsc-button text-white'
+                    : 'text-vsc-text-secondary hover:bg-vsc-bg-active hover:text-vsc-text'
                 }`}
                 title="Grid Layout"
               >
@@ -218,20 +218,20 @@ export const MultiTerminalView: React.FC<MultiTerminalViewProps> = ({
           </button>
 
           {showAddMenu && (
-            <div className="absolute top-full right-0 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64">
+            <div className="absolute top-full right-0 mt-2 bg-vsc-bg border border-vsc-border rounded-lg shadow-2xl p-3 w-64">
               <input
                 type="text"
                 value={newBotName}
                 onChange={(e) => setNewBotName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddTerminal()}
                 placeholder="Bot name..."
-                className="w-full bg-black border border-gray-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                className="w-full bg-vsc-bg-secondary border border-vsc-border rounded px-3 py-2 text-white text-sm outline-none focus:ring-2 focus:ring-vsc-accent mb-2"
                 autoFocus
               />
               <button
                 onClick={handleAddTerminal}
                 disabled={!newBotName.trim()}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-2 bg-vsc-button hover:bg-vsc-button-hover text-white rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Terminal
               </button>

@@ -1,6 +1,6 @@
 export const API_BASE = "https://g-fast-api.cicy.de5.net"
 export const TTYD_BASE = "https://ttyd-proxy.cicy.de5.net"
-export const TTYD_WEB_BASE = 'https://ttyd-dev.cicy.de5.net';
+export const TTYD_WEB_BASE = 'https://ide.cicy.de5.net';
 
 export const config = {
   apiBase: API_BASE,

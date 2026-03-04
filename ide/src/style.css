@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  *, ::before, ::after {
+    border-color: #474747;
+  }
+}
+
 .no-select {
   user-select: none;
 }

@@ -1,5 +1,5 @@
 import React, { useEffect ,useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Loader2, CheckCircle, History, Mic } from 'lucide-react';
+import { Loader2, CheckCircle, History, Mic, ArrowUp } from 'lucide-react';
 import { FloatingPanel } from './FloatingPanel';
 import { TerminalControls } from './TerminalControls';
 import { Position, Size } from '../types';
@@ -355,10 +355,36 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
       disableDrag={disableDrag}
       headerActions={
         <>
+          <select
+            className="bg-vsc-bg-secondary text-vsc-text text-xs rounded-md border border-vsc-border px-1.5 py-1 outline-none cursor-pointer hover:bg-vsc-bg-active"
+            value=""
+            onChange={async (e) => {
+              const v = e.target.value;
+              if (!v) return;
+              e.target.value = '';
+              if (['Left', 'Down', 'Up', 'Right'].includes(v)) {
+                await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: v }) });
+              } else {
+                await sendCommandToTmux(v, selectedPane);
+              }
+            }}
+          >
+            <option value="">⚡</option>
+            <option value="Left">← Left</option>
+            <option value="Down">↓ Down</option>
+            <option value="Up">↑ Up</option>
+            <option value="Right">→ Right</option>
+            <option value="/compact">/compact</option>
+            <option value="/model">/model</option>
+            <option value="/tools trust-all">Trust All</option>
+            <option value="t">Trust (t)</option>
+            <option value="y">Yes (y)</option>
+            <option value="n">No (n)</option>
+          </select>
           {onToggleVoiceControl && (
             <button
               onClick={onToggleVoiceControl}
-              className={`p-1.5 rounded transition-colors ${showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              className={`p-1.5 rounded transition-colors ${showVoiceControl ? 'text-red-400 bg-red-500/20' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active'}`}
               title={showVoiceControl ? "Hide voice mode" : "Show voice mode"}
             >
               <Mic size={14} />
@@ -388,7 +414,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                     setShowHistory(v => !v);
                   }
                 }}
-                className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active'}`}
                 title="Command history"
               >
                 <History size={14} />
@@ -406,7 +432,14 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     >
       <form onSubmit={handleSendPrompt} className="relative h-full flex flex-col p-2">
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="relative flex-1 flex flex-col min-h-0">
+          <div className="relative flex-1 flex flex-col min-h-0" style={{paddingBottom: '8px'}}>
+            <button
+              type="submit"
+              disabled={!promptText.trim() || isSending}
+              className="absolute top-2 right-2 z-10 p-1.5 bg-vsc-button hover:bg-vsc-button-hover text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            >
+              {isSending ? <Loader2 size={14} className="animate-spin" /> : sendSuccess ? <CheckCircle size={14} className="text-green-400" /> : <ArrowUp size={14} />}
+            </button>
             <textarea
               id="prompt-textarea"
               ref={textareaRef}
@@ -583,56 +616,10 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                 }
               }}
               placeholder="Type command..."
-              className="w-full h-full bg-black/50 text-white rounded-lg border border-gray-700 p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-sm shadow-inner placeholder:text-gray-600 placeholder:opacity-50"
+              className="w-full h-full bg-vsc-bg-secondary text-vsc-text rounded-lg border border-vsc-border p-2 focus:ring-2 focus:ring-vsc-accent focus:border-transparent outline-none resize-none text-sm shadow-inner placeholder:text-vsc-text-muted placeholder:opacity-50"
               disabled={isSending}
             />
           </div>
-          <div className="flex items-center justify-between mt-1.5 px-0.5">
-            <div className="text-xs flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${agentStatus === 'idle' ? 'bg-green-400' : agentStatus === 'wait_auth' ? 'bg-yellow-400 animate-pulse' : agentStatus === 'compacting' ? 'bg-blue-400 animate-pulse' : agentStatus === 'wait_startup' ? 'bg-gray-400' : 'bg-cyan-400 animate-pulse'}`} />
-              <span className="text-gray-500 capitalize">{agentStatus}</span>
-              {contextUsage != null && <span className={contextUsage >= 80 ? 'text-red-400' : contextUsage >= 50 ? 'text-yellow-400' : 'text-gray-600'}>· {contextUsage}%</span>}
-              {queueLen > 0 && <span className="text-orange-400 animate-pulse">· Q:{queueLen}</span>}
-            </div>
-            <div className="flex gap-1">
-              <select
-                className="bg-gray-800 text-gray-300 text-xs rounded-md border border-gray-700 px-1.5 py-1.5 outline-none cursor-pointer hover:bg-gray-700"
-                value=""
-                onChange={async (e) => {
-                  const v = e.target.value;
-                  if (!v) return;
-                  e.target.value = '';
-                  if (['Left', 'Down', 'Up', 'Right'].includes(v)) {
-                    await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: v }) });
-                  } else {
-                    await sendCommandToTmux(v, selectedPane);
-                  }
-                }}
-              >
-                <option value="">⚡</option>
-                <option value="Left">← Left</option>
-                <option value="Down">↓ Down</option>
-                <option value="Up">↑ Up</option>
-                <option value="Right">→ Right</option>
-                <option value="/compact">/compact</option>
-                <option value="/model">/model</option>
-                <option value="/tools trust-all">Trust All</option>
-                <option value="t">Trust (t)</option>
-                <option value="y">Yes (y)</option>
-                <option value="n">No (n)</option>
-              </select>
-              <button
-                type="submit"
-                disabled={!promptText.trim() || isSending}
-                className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-              >
-                {isSending ? <Loader2 size={14} className="animate-spin" /> : sendSuccess ? <CheckCircle size={14} className="text-green-400" /> : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                )}
-              </button>
-            </div>
-          </div>
-
         </div>
       </form>
     </FloatingPanel>
@@ -641,14 +628,14 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     {/* 队列显示面板 */}
     {queueLen > 0 && (
       <div 
-        className="fixed bg-gray-900/95 border border-orange-500/50 rounded-lg p-2 shadow-xl backdrop-blur-sm z-[50]"
+        className="fixed bg-vsc-bg/95 border border-orange-500/50 rounded-lg p-2 shadow-xl backdrop-blur-sm z-[50]"
         style={{ 
           left: currentPos.x,
           top: currentPos.y + currentSize.height + 8,
           width: currentSize.width
         }}
       >
-        <div className="text-xs text-gray-300 mb-2 max-h-24 overflow-y-auto whitespace-pre-wrap bg-black/30 p-2 rounded">
+        <div className="text-xs text-vsc-text mb-2 max-h-24 overflow-y-auto whitespace-pre-wrap bg-black/30 p-2 rounded">
           {sendQueueRef.current.join('\n\n')}
         </div>
         <button
@@ -659,7 +646,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
             setQueueLen(0);
             setTimeout(() => textareaRef.current?.focus(), 50);
           }}
-          className="w-full text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+          className="w-full text-xs px-2 py-1 bg-vsc-button hover:bg-vsc-button-hover text-white rounded transition-colors"
         >
           Edit
         </button>

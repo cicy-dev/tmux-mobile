@@ -148,16 +148,16 @@ export const VoiceFloatingButton: React.FC<VoiceFloatingButtonProps> = ({
         <div 
           className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-md border border-white/10 transition-all duration-300 ease-out ${
             dragMode 
-              ? 'bg-blue-600/80 scale-90 cursor-move' 
+              ? 'bg-vsc-button/80 scale-90 cursor-move' 
               : isPressed 
                 ? 'bg-red-600 shadow-[0_0_50px_rgba(220,38,38,0.6)] scale-110 ring-4 ring-white/20' 
-                : 'bg-gray-800/90 hover:bg-gray-700/90 cursor-pointer scale-100'
+                : 'bg-vsc-bg-secondary/90 hover:bg-vsc-bg-active/90 cursor-pointer scale-100'
           }`}
         >
           {dragMode ? (
               <Move size={32} className="text-white" />
           ) : (
-              <Mic size={40} className={`transition-all duration-200 ${isPressed ? 'text-white scale-110' : 'text-gray-300'}`} />
+              <Mic size={40} className={`transition-all duration-200 ${isPressed ? 'text-white scale-110' : 'text-vsc-text'}`} />
           )}
         </div>
       </div>

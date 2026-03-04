@@ -153,7 +153,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   return (
     <div
       ref={panelRef}
-      className="flex flex-col bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl overflow-hidden touch-none"
+      className="flex flex-col bg-vsc-bg/95 backdrop-blur-md border border-vsc-border shadow-2xl overflow-hidden touch-none"
       style={{
         position: disableDrag ? 'relative' : 'fixed',
         left: disableDrag ? 'auto' : position.x,
@@ -168,12 +168,12 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     >
       {/* Header / Drag Handle */}
       <div
-        className="h-10 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-3 select-none touch-none shrink-0"
+        className="h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center justify-between px-3 select-none touch-none shrink-0"
         style={{cursor: disableDrag ? 'default' : 'move'}}
         onMouseDown={handleStartDrag}
         onTouchStart={handleStartDrag}
       >
-        <div className="flex items-center gap-2 text-gray-300 min-w-0 mr-2">
+        <div className="flex items-center gap-2 text-vsc-text min-w-0 mr-2">
           <GripHorizontal size={20} className="shrink-0" />
           {title && <span className="text-sm font-medium truncate">{title}</span>}
         </div>
@@ -184,7 +184,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
             {onClose && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onClose(); }}
-                    className="p-2 hover:bg-red-500/20 hover:text-red-400 rounded-lg text-gray-400 transition-colors ml-1 md:ml-2"
+                    className="p-2 hover:bg-red-500/20 hover:text-red-400 rounded-lg text-vsc-text-secondary transition-colors ml-1 md:ml-2"
                     title="Close Panel"
                 >
                     <X size={18} />
@@ -196,17 +196,6 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative flex flex-col">
         {children}
-      </div>
-
-      {/* Resize Handle */}
-      <div
-        className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize z-50 touch-none"
-        onMouseDown={handleStartResize}
-        onTouchStart={handleStartResize}
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" className="absolute bottom-0 right-0 text-gray-400">
-          <path d="M14 14L14 8L8 14Z" fill="currentColor"/>
-        </svg>
       </div>
     </div>
   );

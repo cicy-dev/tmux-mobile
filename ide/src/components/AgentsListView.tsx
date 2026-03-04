@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, Plus, Trash2, RotateCw, ExternalLink } from 'lucide-react';
 import { getApiUrl } from '../services/apiUrl';
+import { WebFrame } from './WebFrame';
 
 interface Agent {
   id: number;
@@ -163,19 +164,19 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-900">
-        <Loader2 className="animate-spin text-gray-400" />
+      <div className="flex items-center justify-center h-full bg-vsc-bg">
+        <Loader2 className="animate-spin text-vsc-text-secondary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 p-3">
+    <div className="flex flex-col h-full bg-vsc-bg p-3">
       <div className="flex gap-2 mb-3">
         <select
           value={selectedAgent}
           onChange={(e) => setSelectedAgent(e.target.value)}
-          className="w-64 bg-gray-800 border border-gray-600 text-white text-sm rounded px-3 py-1 focus:outline-none focus:border-blue-500"
+          className="w-64 bg-vsc-bg-secondary border border-vsc-border text-vsc-text text-sm rounded px-3 py-1 focus:outline-none focus:border-vsc-accent"
         >
           <option value="">Select an agent...</option>
           {allAgents
@@ -187,7 +188,7 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
         <button
           onClick={handleAddAgent}
           disabled={!selectedAgent}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-3 py-1 rounded flex items-center gap-1 text-sm"
+          className="bg-vsc-button hover:bg-vsc-button-hover disabled:bg-vsc-bg-active disabled:cursor-not-allowed text-white px-3 py-1 rounded flex items-center gap-1 text-sm"
         >
           <Plus size={14} /> Add
         </button>
@@ -234,14 +235,14 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
 
       {agents.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-500 text-sm">No agents bound</p>
+          <p className="text-vsc-text-muted text-sm">No agents bound</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2 h-full overflow-auto">
           {agents.filter(a => a.name !== ttydPreview).map(agent => (
             <div 
               key={agent.id} 
-              className="bg-gray-800 border border-gray-700 rounded relative" 
+              className="bg-vsc-bg-secondary border border-vsc-border rounded relative" 
               style={{height: `${heights[agent.name] || 150}px`}}
               onMouseLeave={(e) => {
                 const target = e.currentTarget.querySelector('.ttyd-mask') as HTMLElement;
@@ -251,32 +252,31 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
               {resizing !== null && (
                 <div className="absolute inset-0 z-20 bg-transparent" />
               )}
-              <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-gray-900/80 rounded p-1">
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-vsc-bg/80 rounded p-1">
                 <span className="text-white text-sm font-medium px-2 py-1">
                   {agent.title || agent.name.replace(':main.0', '')}
                 </span>
                 <button
-                  onClick={() => window.open(`https://ttyd-dev.cicy.de5.net/ttyd/${agent.name}/?token=${token}&mode=ttyd`, '_blank')}
-                  className="text-green-400 hover:text-green-300 bg-gray-900/80 p-1 rounded"
+                  onClick={() => window.open(`https://ide.cicy.de5.net/ttyd/${agent.name}/?token=${token}`, '_blank')}
+                  className="text-green-400 hover:text-green-300 bg-vsc-bg/80 p-1 rounded"
                 >
                   <ExternalLink size={14} />
                 </button>
                 <button
                   onClick={() => handleReloadIframe(agent.name)}
-                  className="text-blue-400 hover:text-blue-300 bg-gray-900/80 p-1 rounded"
+                  className="text-vsc-link hover:text-blue-300 bg-vsc-bg/80 p-1 rounded"
                 >
                   <RotateCw size={14} />
                 </button>
                 <button
                   onClick={() => handleRemoveAgent(agent.id)}
-                  className="text-red-400 hover:text-red-300 bg-gray-900/80 p-1 rounded"
+                  className="text-red-400 hover:text-red-300 bg-vsc-bg/80 p-1 rounded"
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
-              <iframe
+              <WebFrame
                 loading="lazy"
-                sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
                 key={iframeKeys[agent.name] || 0}
                 src={`https://ttyd-proxy.cicy.de5.net/ttyd/${agent.name}/?token=${token}&mode=1`}
                 className="w-full h-full rounded align-top"
@@ -293,7 +293,7 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
               {isDragging && <div className="absolute inset-0 z-20"></div>}
               <div
                 onMouseDown={(e) => handleMouseDown(agent.name, e)}
-                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors"
+                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-vsc-button-hover/20 transition-colors"
               />
             </div>
           ))}
