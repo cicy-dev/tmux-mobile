@@ -17,7 +17,6 @@ import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 
 // Read URL query params
-const m = window.location.href.match(/^\/ttyd\/([^/]+)(\/.*)?$/);
 const BOT_NAME = decodeURIComponent(window.location.href.split("/")[4])
 
 console.log({BOT_NAME})
