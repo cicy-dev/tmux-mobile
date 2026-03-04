@@ -47,8 +47,6 @@ declare global {
 
 const App: React.FC = () => {
   const MODE = new URLSearchParams(window.location.search).get('mode') || null;
-
-  const [showTopbar, setShowTopbar] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
   const [token, setToken] = useState<string | null>(null);
