@@ -322,24 +322,33 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     <>
       <FloatingPanel
         title={
-          boundAgents.length > 0 ? (
-            <div className="flex items-center gap-1">
-              <select 
-                value={selectedPane} 
-                onChange={(e) => setSelectedPane(e.target.value)}
-                className="bg-transparent text-white text-xs border-none outline-none cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <option value={paneTarget}>{title}</option>
-                {boundAgents.map(agent => (
-                  <option key={agent} value={agent}>{agent.replace(':main.0', '')}</option>
-                ))}
-              </select>
-              {selectedPane === paneTarget && (
-                <span className="text-yellow-400 text-xs font-bold">Master</span>
-              )}
-            </div>
-          ) : title
+          <>
+            <TerminalControls
+              mouseMode={paneModes[selectedPane] || mouseMode}
+              onToggleMouse={() => {
+                const newMode = (paneModes[selectedPane] || mouseMode) === 'on' ? 'off' : 'on';
+                const updated = { ...paneModes, [selectedPane]: newMode };
+                setPaneModes(updated);
+                localStorage.setItem('pane_mouse_modes', JSON.stringify(updated));
+                onToggleMouse?.();
+              }}
+              isTogglingMouse={isTogglingMouse}
+              onCapture={hasCapturePermission ? () => onCapturePane?.(selectedPane) : undefined}
+              isCapturing={isCapturing}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (onShowHistory) {
+                  onShowHistory(commandHistory, handleSelectHistory);
+                }
+              }}
+              className="p-1.5 rounded transition-colors text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active"
+              title="Command history"
+            >
+              <History size={14} />
+            </button>
+          </>
         }
         initialPosition={panelPosition}
         initialSize={panelSize}
@@ -389,37 +398,6 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
             >
               <Mic size={14} />
             </button>
-          )}
-          <TerminalControls
-            mouseMode={paneModes[selectedPane] || mouseMode}
-            onToggleMouse={() => {
-              const newMode = (paneModes[selectedPane] || mouseMode) === 'on' ? 'off' : 'on';
-              const updated = { ...paneModes, [selectedPane]: newMode };
-              setPaneModes(updated);
-              localStorage.setItem('pane_mouse_modes', JSON.stringify(updated));
-              onToggleMouse?.();
-            }}
-            isTogglingMouse={isTogglingMouse}
-            onCapture={hasCapturePermission ? () => onCapturePane?.(selectedPane) : undefined}
-            isCapturing={isCapturing}
-          />
-          {mode === 'ttyd' && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onShowHistory) {
-                    onShowHistory(commandHistory, handleSelectHistory);
-                  } else {
-                    setShowHistory(v => !v);
-                  }
-                }}
-                className={`p-1.5 rounded transition-colors ${showHistory ? 'text-orange-400 bg-orange-500/20' : 'text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active'}`}
-                title="Command history"
-              >
-                <History size={14} />
-              </button>
-            </>
           )}
           {isCorrectingEnglish && (
             <div className="flex items-center gap-1 px-2 py-1 text-purple-400 text-xs">

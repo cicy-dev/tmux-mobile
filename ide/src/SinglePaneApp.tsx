@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Home } from 'lucide-react';
+import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Home, RefreshCw, MoreVertical, History, GripHorizontal, Plus } from 'lucide-react';
 import { IframeTopbar } from './components/IframeTopbar';
 import { TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
@@ -108,6 +108,8 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(`${BOT_NAME}_showTtydInCode`);
     return saved === 'true';
   });
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showDesktopDialog, setShowDesktopDialog] = useState(false);
 
   const [isInteracting, setIsInteracting] = useState(false);
   const [multiTerminalMode, setMultiTerminalMode] = useState(false);
@@ -130,16 +132,22 @@ const App: React.FC = () => {
 
   const hasPermission = (perm: string) => userPerms.includes('api_full') || userPerms.includes(perm);
 
-  // Close correction panel with Esc key
+  // Close correction panel and history with Esc key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showCorrectionResult) {
-        setShowCorrectionResult(false);
+      if (e.key === 'Escape') {
+        if (showDesktopDialog) {
+          setShowDesktopDialog(false);
+        } else if (showCorrectionResult) {
+          setShowCorrectionResult(false);
+        } else if (showHistoryOverlay) {
+          setShowHistoryOverlay(false);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showCorrectionResult]);
+  }, [showCorrectionResult, showHistoryOverlay, showDesktopDialog]);
 
   const [isTogglingMouse, setIsTogglingMouse] = useState(false);
 
@@ -829,34 +837,97 @@ const App: React.FC = () => {
             workspace={paneWorkspace}
             networkLatency={networkLatency}
             networkStatus={networkStatus}
+            onTitleClick={() => setShowDesktopDialog(true)}
             rightActions={
               <>
-                <button type="button" onClick={async () => {
-                  const paneId = BOT_NAME.replace(':main.0', '');
-                  await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="px-1.5 py-0.5 bg-vsc-bg-active hover:bg-vsc-bg-active text-white text-xs rounded transition-colors" title="会话选择">^bs</button>
-                <button type="button" onClick={async () => {
-                  const paneId = BOT_NAME.replace(':main.0', '');
-                  await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="p-1 bg-vsc-button hover:bg-vsc-button text-white rounded transition-colors" title="水平分屏(上下)"><SplitSquareVertical size={12} /></button>
-                <button type="button" onClick={async () => {
-                  const paneId = BOT_NAME.replace(':main.0', '');
-                  await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="p-1 bg-vsc-button hover:bg-vsc-button text-white rounded transition-colors" title="垂直分屏(左右)"><SplitSquareHorizontal size={12} /></button>
-                <button type="button" onClick={async () => {
-                  const paneId = BOT_NAME.replace(':main.0', '');
-                  await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                }} className="p-1 bg-red-700 hover:bg-red-600 text-white rounded transition-colors" title="关闭分屏"><XSquare size={12} /></button>
-                <button type="button" onClick={() => {
-                  if (mainIframeRef.current) {
-                    mainIframeRef.current.src = mainIframeRef.current.src;
-                  }
-                }} className="p-1 rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active transition-colors" title="Reload page"><RotateCcw size={12} /></button>
-                {hasPermission('prompt') && (
-                  <button type="button" onClick={() => handleRestart()} className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors" title="Restart tmux and ttyd">
-                    <Power size={12} className={isRestarting ? 'animate-pulse' : ''} />
+                <div className="relative">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowMoreMenu(!showMoreMenu)} 
+                    className="p-1 rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active transition-colors" 
+                    title="More"
+                  >
+                    <MoreVertical size={12} />
                   </button>
-                )}
+                  {showMoreMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}></div>
+                      <div className="absolute right-0 top-full mt-1 bg-vsc-bg border border-vsc-border rounded shadow-lg z-50 min-w-[180px]">
+                        <button 
+                          type="button" 
+                          onClick={async () => {
+                            const paneId = BOT_NAME.replace(':main.0', '');
+                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                            setShowMoreMenu(false);
+                          }} 
+                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover"
+                        >
+                          ^bs Choose Session
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={async () => {
+                            const paneId = BOT_NAME.replace(':main.0', '');
+                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                            setShowMoreMenu(false);
+                          }} 
+                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                        >
+                          <SplitSquareVertical size={12} /> Split Horizontal
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={async () => {
+                            const paneId = BOT_NAME.replace(':main.0', '');
+                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                            setShowMoreMenu(false);
+                          }} 
+                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                        >
+                          <SplitSquareHorizontal size={12} /> Split Vertical
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={async () => {
+                            const paneId = BOT_NAME.replace(':main.0', '');
+                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                            setShowMoreMenu(false);
+                          }} 
+                          className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
+                        >
+                          <XSquare size={12} /> Close Split
+                        </button>
+                        <div className="border-t border-vsc-border my-1"></div>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (confirm('Reload this page?')) {
+                              if (mainIframeRef.current) {
+                                mainIframeRef.current.src = mainIframeRef.current.src;
+                              }
+                            }
+                            setShowMoreMenu(false);
+                          }} 
+                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                        >
+                          <RefreshCw size={12} /> Reload
+                        </button>
+                        {hasPermission('prompt') && (
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              handleRestart();
+                              setShowMoreMenu(false);
+                            }} 
+                            className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
+                          >
+                            <RefreshCw size={12} className={isRestarting ? 'animate-spin' : ''} /> Restart
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             }
           />
@@ -1255,6 +1326,21 @@ const App: React.FC = () => {
       {toast && (
         <div className="fixed bottom-4 left-4 px-4 py-2 bg-vsc-button text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400" style={{zIndex: 999999999}}>
           {toast}
+        </div>
+      )}
+
+      {/* Desktop Dialog */}
+      {showDesktopDialog && (
+        <div className="fixed inset-0 bg-black/80 z-[9999999] flex items-center justify-center" onClick={() => setShowDesktopDialog(false)}>
+          <div className="w-full h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center justify-between px-3">
+              <span className="text-sm text-vsc-text font-medium">Desktop</span>
+              <button onClick={() => setShowDesktopDialog(false)} className="p-1 hover:bg-vsc-bg-hover rounded text-vsc-text-secondary hover:text-vsc-text">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <iframe src={`https://desktop.cicy.de5.net/?token=${token}`} className="flex-1 w-full border-none" />
+          </div>
         </div>
       )}
     </div>

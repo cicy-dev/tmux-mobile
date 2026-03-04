@@ -174,8 +174,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         onTouchStart={handleStartDrag}
       >
         <div className="flex items-center gap-2 text-vsc-text min-w-0 mr-2">
-          <GripHorizontal size={20} className="shrink-0" />
-          {title && <span className="text-sm font-medium truncate">{title}</span>}
+          {title}
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
