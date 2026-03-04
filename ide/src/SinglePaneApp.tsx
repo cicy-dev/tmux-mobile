@@ -12,7 +12,6 @@ import { SettingsView } from './components/SettingsView';
 import { AgentsView } from './components/AgentsView';
 import { AgentsListView } from './components/AgentsListView';
 import { CaptureDialog } from './components/CaptureDialog';
-import { sendShortcut } from './services/mockApi';
 import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 
