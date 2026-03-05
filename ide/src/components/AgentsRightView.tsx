@@ -17,6 +17,7 @@ interface Agent {
 export const AgentsRightView: React.FC<AgentsRightViewProps> = ({ token, onAddAgent, existingTabs }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     // Load from cache first
@@ -47,7 +48,14 @@ export const AgentsRightView: React.FC<AgentsRightViewProps> = ({ token, onAddAg
       });
   }, [token]);
 
-  const filteredAgents = agents.filter(agent => !existingTabs.includes(agent.pane_id));
+  const filteredAgents = agents
+    .filter(agent => !existingTabs.includes(agent.pane_id))
+    .filter(agent => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (agent.title?.toLowerCase().includes(s)) || 
+             (agent.pane_id?.toLowerCase().includes(s));
+    });
 
   const handleAgentClick = (agent: Agent) => {
     const url = `https://ttyd-proxy.cicy.de5.net/ttyd/${agent.pane_id}/?token=${token}&mode=1`;
@@ -55,7 +63,7 @@ export const AgentsRightView: React.FC<AgentsRightViewProps> = ({ token, onAddAg
   };
 
   return (
-    <div className="absolute inset-0 bg-vsc-bg/95 backdrop-blur-sm z-50 overflow-auto p-6">
+    <div className="absolute inset-0 bg-vsc-bg/95 backdrop-blur-sm z-50 overflow-auto">
       {loading && agents.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-vsc-text-secondary">Loading agents...</div>
@@ -68,26 +76,39 @@ export const AgentsRightView: React.FC<AgentsRightViewProps> = ({ token, onAddAg
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {filteredAgents.map((agent, idx) => (
-            <div 
-              key={agent.pane_id || idx}
-              onClick={() => handleAgentClick(agent)}
-              className="group relative bg-vsc-bg-secondary border border-vsc-border rounded-lg p-3 cursor-pointer hover:border-vsc-button hover:shadow-lg transition-all"
-            >
-              <div className="flex flex-col gap-2">
-                <div className="text-sm font-medium text-vsc-text truncate" title={agent.title || agent.pane_id}>
-                  {agent.title || agent.pane_id || 'unknown'}
+        <div className="flex flex-col h-full">
+          <div className="flex-shrink-0 p-4 border-b border-vsc-border">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search agents..."
+              className="w-full px-3 py-2 bg-vsc-bg-secondary border border-vsc-border rounded text-sm text-vsc-text placeholder-vsc-text-muted focus:outline-none focus:border-vsc-button"
+              autoFocus
+            />
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            <div className="max-w-4xl mx-auto space-y-2">
+              {filteredAgents.map((agent, idx) => (
+                <div 
+                  key={agent.pane_id || idx}
+                  onClick={() => handleAgentClick(agent)}
+                  className="group flex items-center gap-3 bg-vsc-bg-secondary border border-vsc-border rounded-lg p-3 cursor-pointer hover:border-vsc-button hover:bg-vsc-bg-hover transition-all"
+                >
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${agent.status === 'idle' ? 'bg-green-500' : agent.status === 'thinking' ? 'bg-yellow-500' : 'bg-gray-500'}`}></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-vsc-text truncate">
+                      {agent.title || agent.pane_id || 'unknown'}
+                    </div>
+                    <div className="text-xs text-vsc-text-muted truncate">{agent.pane_id}</div>
+                  </div>
+                  <div className="text-xs text-vsc-text-secondary flex-shrink-0">
+                    {agent.status || 'unknown'}
+                  </div>
                 </div>
-                <div className="text-xs text-vsc-text-muted truncate">{agent.pane_id}</div>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${agent.status === 'idle' ? 'bg-green-500' : agent.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-500'}`}></div>
-                  <div className="text-xs text-vsc-text-secondary">{agent.status || 'unknown'}</div>
-                </div>
-              </div>
-              <div className="absolute inset-0 bg-vsc-button/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       )}
     </div>
