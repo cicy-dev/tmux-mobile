@@ -127,10 +127,19 @@ const App: React.FC = () => {
   const [mouseMode, setMouseMode] = useState<'on' | 'off'>('off');
   const [visitedPanes, setVisitedPanes] = useState<string[]>([]);
 
-  // Compute display values after all state is defined
-  const currentPane = allPanes.find((p: any) => p.pane_id === currentPaneId);
-  const displayPaneId = currentPaneId || CurrentPaneId || '';
-  const displayPaneTitle = currentPane?.title || paneTitle || displayPaneId || 'No pane selected';
+  // Compute display values - use useMemo to ensure reactive updates
+  const currentPane = React.useMemo(() => 
+    allPanes.find((p: any) => p.pane_id === currentPaneId), 
+    [allPanes, currentPaneId]
+  );
+  const displayPaneId = React.useMemo(() => 
+    currentPaneId || CurrentPaneId || '', 
+    [currentPaneId]
+  );
+  const displayPaneTitle = React.useMemo(() => 
+    currentPane?.title || paneTitle || displayPaneId || 'No pane selected',
+    [currentPane, paneTitle, displayPaneId]
+  );
 
   const hasPermission = (perm: string) => userPerms.includes('api_full') || userPerms.includes(perm);
 

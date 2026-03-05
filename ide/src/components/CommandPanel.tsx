@@ -189,6 +189,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
 
   const handleSendPrompt = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
+    console.log('[CommandPanel.handleSendPrompt] paneTarget:', paneTarget, 'selectedPane:', selectedPane);
     const cmd = promptText.trim();
     
     // If prompt is empty but correction result exists, send the corrected English
@@ -204,7 +205,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
       setIsSending(true);
       setSendSuccess(false);
       try {
-        await sendCommandToTmux(correctedCmd, selectedPane);
+        await sendCommandToTmux(correctedCmd, paneTarget);
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 2000);
       } catch (e) { 
@@ -255,7 +256,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
     setIsSending(true);
     setSendSuccess(false);
     try {
-      await sendCommandToTmux(cmd, selectedPane);
+      await sendCommandToTmux(cmd, paneTarget);
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
     } catch (e) { console.error(e); }
@@ -372,9 +373,9 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               if (!v) return;
               e.target.value = '';
               if (['Left', 'Down', 'Up', 'Right'].includes(v)) {
-                await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: selectedPane, keys: v }) });
+                await fetch(getApiUrl('/api/tmux/send'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ win_id: paneTarget, keys: v }) });
               } else {
-                await sendCommandToTmux(v, selectedPane);
+                await sendCommandToTmux(v, paneTarget);
               }
             }}
           >
@@ -449,7 +450,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                       }
                       setIsSending(true);
                       setSendSuccess(false);
-                      sendCommandToTmux(cmd, selectedPane)
+                      sendCommandToTmux(cmd, paneTarget)
                         .then(() => { setSendSuccess(true); setTimeout(() => setSendSuccess(false), 2000); })
                         .catch(console.error)
                         .finally(() => { setIsSending(false); setTimeout(() => textareaRef.current?.focus(), 50); });
@@ -467,7 +468,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                     }
                     setIsSending(true);
                     setSendSuccess(false);
-                    sendCommandToTmux(cmd, selectedPane)
+                    sendCommandToTmux(cmd, paneTarget)
                       .then(() => { setSendSuccess(true); setTimeout(() => setSendSuccess(false), 2000); })
                       .catch(console.error)
                       .finally(() => { setIsSending(false); setTimeout(() => textareaRef.current?.focus(), 50); });
@@ -555,7 +556,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
                         saveDraft('');
                         setIsSending(true);
                         setSendSuccess(false);
-                        sendCommandToTmux(cmd, selectedPane)
+                        sendCommandToTmux(cmd, paneTarget)
                           .then(() => { setSendSuccess(true); setTimeout(() => setSendSuccess(false), 2000); })
                           .catch(console.error)
                           .finally(() => { setIsSending(false); setTimeout(() => textareaRef.current?.focus(), 50); });

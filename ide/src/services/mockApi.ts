@@ -10,6 +10,7 @@ const authHeaders = () => ({ 'Content-Type': 'application/json', 'Accept': 'appl
 
 // 发送命令到 tmux
 export const sendCommandToTmux = async (command: string, tmuxTarget: string): Promise<{ success: boolean; message: string }> => {
+  console.log('[sendCommandToTmux] currentPaneId (tmuxTarget):', tmuxTarget, 'command:', command);
   const res = await fetch(getApiUrl('/api/tmux/send'), {
     method: 'POST',
     headers: authHeaders(),
