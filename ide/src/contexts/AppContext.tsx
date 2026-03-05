@@ -31,6 +31,9 @@ interface AppContextType {
   loadAgents: () => Promise<void>;
   removeAgent: (paneId: string, agentId?: number) => Promise<void>;
   
+  // All Panes
+  allPanes: Agent[];
+  
   // UI State
   loading: boolean;
   error: string | null;
@@ -44,6 +47,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentPaneId, setCurrentPaneId] = useState<string | null>(null);
   const [api, setApi] = useState<ApiClient | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [allPanes, setAllPanes] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +67,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     setLoading(false);
   }, []);
+
+  // Fetch all panes status
+  useEffect(() => {
+    if (!api) return;
+    const fetchAllPanes = async () => {
+      try {
+        const data = await api.getAgents();
+        const panesArray = Object.values(data) || [];
+        setAllPanes(panesArray);
+        
+        // Set first pane as current if not set
+        if (panesArray.length > 0 && !PaneManager.getCurrentPane()) {
+          const firstPane = panesArray[0] as any;
+          PaneManager.setCurrentPane(firstPane.pane_id);
+          setCurrentPaneId(firstPane.pane_id);
+        }
+      } catch (err) {
+        console.error('Failed to fetch panes:', err);
+      }
+    };
+    fetchAllPanes();
+    const id = setInterval(fetchAllPanes, 5000);
+    return () => clearInterval(id);
+  }, [api]);
 
   const login = (newToken: string) => {
     TokenManager.saveToken(newToken);
@@ -133,6 +161,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     agents,
     loadAgents,
     removeAgent,
+    allPanes,
     loading,
     error,
     setError,

@@ -1,6 +1,11 @@
 import React from 'react';
 import SinglePaneApp from './SinglePaneApp';
+import { AppProvider } from './contexts/AppContext';
 
 export const Router: React.FC = () => {
-  return <SinglePaneApp />;
+  return (
+    <AppProvider>
+      <SinglePaneApp />
+    </AppProvider>
+  );
 };

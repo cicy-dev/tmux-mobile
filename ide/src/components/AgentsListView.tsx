@@ -68,12 +68,12 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
 
   const fetchAllAgents = async () => {
     try {
-      const res = await fetch(getApiUrl('/api/ttyd/list'), {
+      const res = await fetch(getApiUrl('/api/tmux/status/all'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setAllAgents(data.configs || data);
+        setAllAgents(data || []);
       }
     } catch (err) {
       console.error('Failed to fetch all agents:', err);

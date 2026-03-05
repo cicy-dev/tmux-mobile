@@ -51,10 +51,17 @@ ide/
 └── tests/              # 测试脚本
 ```
 
+### UI 布局
+
+界面分为 3 列：
+- **左列（256px）** - Agents 列表 (AgentsListView)
+- **中列（ttydWidth）** - main-right (当前 pane 终端)
+- **右列（剩余空间）** - main-left (Code/Agents/Preview/Settings tabs)
+
 ### 核心组件
-- **SinglePaneApp.tsx** - 主应用（需要拆分）
-- **AgentsRightView.tsx** - Agents 网格视图
-- **AgentsListView.tsx** - Agents 列表视图
+- **SinglePaneApp.tsx** - 主应用
+- **AgentsRightView.tsx** - Agents 网格视图（右列 Agents tab）
+- **AgentsListView.tsx** - Agents 列表视图（左列）
 - **WebFrame.tsx** - iframe 封装
 
 ## 开发规范
@@ -123,15 +130,56 @@ const { token, agents } = useApp();
 ## 常用命令
 
 ```bash
-# 开发
+# 开发（支持 HMR 热重载）
 docker compose up --build
+
+# 修改前端代码后自动更新，无需重启
+# 浏览器会自动刷新
 
 # 测试
 bash tests/curl/test_health.sh
 bash tests/e2e/test_login.sh
 
 # 查看 API
-fast-api --tools
+fast-api --tools                    # 列出所有端点
+fast-api --tools /api/tmux/panes    # 查看端点详情
+fast-api /api/tmux/panes            # 调用 API
+```
+
+## 修改 API 端点
+
+如需修改或添加 API 端点，编辑以下文件：
+
+```
+/home/w3c_offical/projects/ai-workers/tmux-app/fast-api/
+├── main.py              # FastAPI 主应用
+├── routers/
+│   ├── tmux.py         # Tmux 相关 API
+│   ├── ttyd.py         # Ttyd 相关 API
+│   ├── agents.py       # Agents 相关 API
+│   └── cf.py           # Cloudflare AI API
+└── cron/
+    └── cron_pane_handler.py  # Pane 状态更新定时任务
+```
+
+修改后需要重启服务：
+```bash
+supervisorctl restart fast-api
+```
+
+## Electron 控制
+
+使用 curl-rpc 控制 Electron 窗口（默认使用 node 2）：
+
+```bash
+# 打开网站
+ELECTRON_MCP_NODE=2 curl-rpc open_window url=https://ide.cicy.de5.net/
+
+# 查看可用工具
+ELECTRON_MCP_NODE=2 curl-rpc tools
+
+# 测试连接
+ELECTRON_MCP_NODE=2 curl-rpc ping
 ```
 
 ## 注意事项
@@ -140,3 +188,4 @@ fast-api --tools
 2. **iframe 权限** - 已添加 allow-downloads 和 clipboard 权限
 3. **最小化代码** - 只写必要的代码
 4. **测试优先** - API 变更需要 curl 测试，UI 变更需要 E2E 测试
+5. **Electron 默认 node 2** - 使用 curl-rpc 时默认 ELECTRON_MCP_NODE=2

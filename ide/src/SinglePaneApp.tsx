@@ -12,6 +12,7 @@ import { CaptureDialog } from './components/CaptureDialog';
 import { getApiUrl,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 import { WebFrame } from './components/WebFrame';
+import { useApp } from './contexts/AppContext';
 
 // Read URL query params
 const CurrentPaneId = decodeURIComponent(window.location.href.split("/")[4])
@@ -50,7 +51,7 @@ const App: React.FC = () => {
   const [userPerms, setUserPerms] = useState<string[]>([]);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [paneTitle, setPaneTitle] = useState<string>('');
-  const [paneWorkspace, setPaneWorkspace] = useState<string>('');
+  const [paneWorkspace, setPaneWorkspace] = useState<string>('/home/w3c_offical');
   const [paneAgentDuty, setPaneAgentDuty] = useState<string>('');
   const [paneAgentType, setPaneAgentType] = useState<string>('');
   const [paneInitScript, setPaneInitScript] = useState<string>('');
@@ -249,7 +250,7 @@ const App: React.FC = () => {
             const data = await res.json();
             const title = data.title || CurrentPaneId;
             setPaneTitle(title);
-            setPaneWorkspace(data.workspace || '');
+            setPaneWorkspace(data.workspace || '/home/w3c_offical');
             setPaneAgentDuty(data.agent_duty || '');
             setPaneAgentType(data.agent_type || '');
             setPaneInitScript(data.init_script || '');
@@ -636,7 +637,7 @@ const App: React.FC = () => {
       });
       if (res.ok) {
         setPaneTitle(dataToSave.title || CurrentPaneId);
-        setPaneWorkspace(dataToSave.workspace || '');
+        setPaneWorkspace(dataToSave.workspace || '/home/w3c_offical');
         setPaneAgentDuty(dataToSave.agent_duty || '');
         setPaneAgentType(dataToSave.agent_type || '');
         setPaneInitScript(dataToSave.init_script || '');
@@ -678,8 +679,14 @@ const App: React.FC = () => {
       {
         MODE === "ttyd" && <div id="main" className="fixed inset-0"> 
 
-        <div id="main-left" className="absolute inset-0 bg-vsc-bg" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
-          <div id="main-left-top" className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center gap-1 px-2 z-10">
+        {/* Column 1: Left - Agents List */}
+        <div id="left-side" className="absolute inset-y-0 left-0 w-64 bg-vsc-bg-secondary border-r border-vsc-border z-10 overflow-hidden">
+          <LeftSidePanel />
+        </div>
+
+        {/* Column 3: Right - Code/Agents/Preview/Settings */}
+        <div id="right-side" className="absolute inset-0 bg-vsc-bg" style={{left: `calc(256px + ${ttydWidth}px)`, width: `calc(100vw - 256px - ${ttydWidth}px - 4px)`}}>
+          <div id="right-side-top" className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center gap-1 px-2 z-10">
             {([ 'Code', 'Agents', 'Preview', 'Settings'] as const).map(tab => (
               <button
                 key={tab}
@@ -695,9 +702,9 @@ const App: React.FC = () => {
           </div>
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
             {paneWorkspace && (
-              <div id="main-left-inner" className="absolute inset-0 flex flex-col" style={{marginTop: '40px', display: activeTab === 'Code' ? 'flex' : 'none'}}>
+              <div id="right-side-inner" className="absolute inset-0 flex flex-col" style={{marginTop: '40px', display: activeTab === 'Code' ? 'flex' : 'none'}}>
                 {/* 区域 A: Code Server - 蓝色背景 */}
-                <div  id="main-left-code-server"  className="w-full flex-1 overflow-hidden flex flex-col" style={{display: isAgentsMaximized ? 'none' : 'flex'}}>
+                <div  id="right-side-code-server"  className="w-full flex-1 overflow-hidden flex flex-col" style={{display: isAgentsMaximized ? 'none' : 'flex'}}>
                   {/* Home + Path Input */}
                   <div className=".bg-vsc-bg h-8 border-b border-vsc-border flex items-center px-2 gap-2 flex-shrink-0">
                     <button 
@@ -902,7 +909,7 @@ const App: React.FC = () => {
                 }}
                 onChange={(pane) => {
                   setPaneTitle(pane.title);
-                  setPaneWorkspace(pane.workspace || '');
+                  setPaneWorkspace(pane.workspace || '/home/w3c_offical');
                   setPaneAgentDuty(pane.agent_duty || '');
                   setPaneAgentType(pane.agent_type || '');
                   setPaneInitScript(pane.init_script || '');
@@ -933,7 +940,7 @@ const App: React.FC = () => {
         </div>
         <div id="drag" 
           className="absolute inset-y-0 w-1 bg-vsc-border hover:bg-vsc-accent cursor-col-resize z-10"
-          style={{left: `calc(100vw - ${ttydWidth}px - 4px)`}}
+          style={{left: `calc(256px + ${ttydWidth}px)`}}
           onMouseDown={(e) => {
             e.preventDefault();
             setIsDragging(true);
@@ -941,7 +948,7 @@ const App: React.FC = () => {
             const startWidth = ttydWidth;
             let currentWidth = startWidth;
             const onMouseMove = (e: MouseEvent) => {
-              const newWidth = Math.max(200, Math.min(window.innerWidth - 200, startWidth - (e.clientX - startX)));
+              const newWidth = Math.max(200, Math.min(window.innerWidth - 456, e.clientX - 256));
               currentWidth = newWidth;
               setTtydWidth(newWidth);
             };
@@ -955,6 +962,14 @@ const App: React.FC = () => {
             document.addEventListener('mouseup', onMouseUp);
           }}
         ></div>
+        {/* Column 2: Middle - Terminal */}
+        <div 
+          id="main-middle" 
+          className="absolute inset-0" 
+          style={{width: `${ttydWidth}px`, left: '256px'}}
+        >
+          <MiddlePanel />
+        </div>
         <div 
           id="main-right" 
           className="absolute inset-0" 
@@ -1445,6 +1460,55 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const MiddlePanel: React.FC = () => {
+  const { currentPaneId, allPanes, token } = useApp();
+  const currentPane = allPanes.find((p: any) => p.pane_id === currentPaneId);
+  
+  if (!currentPane) {
+    return (
+      <div className="h-full flex items-center justify-center bg-vsc-bg text-vsc-text-secondary">
+        No pane selected
+      </div>
+    );
+  }
+  
+  return (
+    <>
+      <div className="h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center px-2">
+        <div className="text-sm text-vsc-text truncate">
+          {currentPane.title || currentPane.pane_id}
+        </div>
+      </div>
+      <div className="h-[calc(100%-40px)]">
+        <WebFrame
+          src={`https://ttyd-proxy.cicy.de5.net/ttyd/${currentPane.pane_id}/?token=${token}&mode=1`}
+          className="w-full h-full"
+        />
+      </div>
+    </>
+  );
+};
+
+const LeftSidePanel: React.FC = () => {
+  const { allPanes, currentPaneId, selectPane } = useApp();
+  return (
+    <div className="h-full overflow-auto">
+      {allPanes.map((pane: any) => (
+        <div 
+          key={pane.pane_id} 
+          onClick={() => selectPane(pane.pane_id)}
+          className={`p-2 border-b border-vsc-border hover:bg-vsc-bg-hover cursor-pointer ${
+            currentPaneId === pane.pane_id ? 'bg-vsc-bg-active' : ''
+          }`}
+        >
+          <div className="text-sm text-vsc-text truncate">{pane.title || pane.pane_id}</div>
+          <div className="text-xs text-vsc-text-secondary">{pane.pane_id}</div>
+        </div>
+      ))}
     </div>
   );
 };

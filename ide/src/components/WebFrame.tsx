@@ -54,6 +54,8 @@ export const WebFrame = forwardRef<HTMLIFrameElement, WebFrameProps>(
             allowpopups={"" as any}
             partition={`persist:sandbox-0`}
             webpreferences="allowRunningInsecureContent=true"
+            nodeintegration={"" as any}
+            disablewebsecurity={"" as any}
           />
         </>
       );
