@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Home, RefreshCw, MoreVertical, History, GripHorizontal, Plus } from 'lucide-react';
+import { Loader2, Keyboard, Mic, SplitSquareHorizontal, SplitSquareVertical, XSquare, RotateCcw, Power, Home, RefreshCw, MoreVertical, History, GripHorizontal, Plus, Folder } from 'lucide-react';
 import { IframeTopbar } from './components/IframeTopbar';
 import { TtydFrameHandle } from './components/TtydFrame';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
@@ -8,6 +8,7 @@ import { VoiceFloatingButton } from './components/VoiceFloatingButton';
 import { LoginForm } from './components/LoginForm';
 import { EditPaneDialog, EditPaneData } from './components/EditPaneDialog';
 import { SettingsView } from './components/SettingsView';
+import { AgentControls } from './components/AgentControls';
 import { AgentsListView } from './components/AgentsListView';
 import { CaptureDialog } from './components/CaptureDialog';
 import { getApiUrl,TTYD_BASE,API_BASE } from './services/apiUrl';
@@ -76,6 +77,8 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(`${BOT_NAME}_ttydPreviewHeight`);
     return saved ? parseInt(saved) : 300;
   });
+  const [isAgentsMinimized, setIsAgentsMinimized] = useState(false);
+  const [isAgentsMaximized, setIsAgentsMaximized] = useState(false);
   const [commandPanelHeight, setCommandPanelHeight] = useState(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_commandPanelHeight`);
     return saved ? parseInt(saved) : 220;
@@ -83,7 +86,7 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<'Code' | 'Services' | 'Docs' | 'Preview' | 'Agents' | 'Settings'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_activeTab`);
-    return (saved as any) || 'Settings';
+    return (saved as any) || 'Code';
   });
   const [servicesTab, setServicesTab] = useState<'Electron' | 'Mysql' | 'Monitor' | 'VNC'>(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_servicesTab`);
@@ -106,7 +109,7 @@ const App: React.FC = () => {
   const [agentCaptureOpen, setAgentCaptureOpen] = useState(false);
   const [showTtydInCode, setShowTtydInCode] = useState(() => {
     const saved = localStorage.getItem(`${BOT_NAME}_showTtydInCode`);
-    return saved === 'true';
+    return saved !== 'false';
   });
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showDesktopDialog, setShowDesktopDialog] = useState(false);
@@ -115,6 +118,8 @@ const App: React.FC = () => {
   const [multiTerminalMode, setMultiTerminalMode] = useState(false);
   const [editingPane, setEditingPane] = useState<EditPaneData | null>(null);
   const [isSavingPane, setIsSavingPane] = useState(false);
+  const [showFavorDirs, setShowFavorDirs] = useState(false);
+  const [favorDirs, setFavorDirs] = useState<string[]>([]);
 
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
   const [networkStatus, setNetworkStatus] = useState<'excellent' | 'good' | 'poor' | 'offline'>('good');
@@ -131,6 +136,69 @@ const App: React.FC = () => {
   const [mouseMode, setMouseMode] = useState<'on' | 'off'>('off');
 
   const hasPermission = (perm: string) => userPerms.includes('api_full') || userPerms.includes(perm);
+
+  const navigateToPath = async (path: string, forceRefresh = false) => {
+    console.log('navigateToPath called:', path, 'forceRefresh:', forceRefresh);
+    if (!path) return;
+    
+    const frame = document.querySelector('.code-server-iframe') as HTMLIFrameElement | HTMLElement;
+    if (!frame) {
+      console.log('Frame not found');
+      return;
+    }
+    
+    // Check if already on this path
+    if (!forceRefresh) {
+      try {
+        const currentSrc = (frame as any).src || frame.getAttribute('src');
+        console.log('Current src:', currentSrc);
+        if (currentSrc) {
+          const currentUrl = new URL(currentSrc);
+          const currentFolder = currentUrl.searchParams.get('folder');
+          console.log('Current folder:', currentFolder, 'Target path:', path);
+          if (currentFolder === path) {
+            console.log('Already on this path, returning');
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error checking current path:', e);
+      }
+    }
+    
+    // Path is different, check if exists
+    try {
+      const res = await fetch(`${API_BASE}/api/utils/file/exists?path=${encodeURIComponent(path)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      console.log('Path exists check:', data);
+      if (!data.exists) {
+        setToast(`Path not found: ${path}`);
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+      // Reload webframe (iframe or webview)
+      const newUrl = `https://code.cicy.de5.net/?folder=${encodeURIComponent(path)}`;
+      console.log('Setting new URL:', newUrl);
+      
+      // Stop current loading for webview
+      if ((frame as any).stop) {
+        (frame as any).stop();
+      }
+      
+      if ((frame as any).src !== undefined) {
+        (frame as any).src = newUrl;
+      } else {
+        frame.setAttribute('src', newUrl);
+      }
+      setPaneWorkspace(path);
+    } catch (err) {
+      console.error('Failed to check path:', err);
+      setToast('Failed to check path');
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
   // Close correction panel and history with Esc key
   useEffect(() => {
@@ -289,6 +357,36 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isLoaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings, isLoaded]);
+
+  // Fetch favor dirs
+  useEffect(() => {
+    if (token) {
+      const fetchFavorDirs = () => {
+        console.log('Fetching favor dirs...');
+        fetch(`${API_BASE}/api/settings/global`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            console.log('Favor dirs data:', data);
+            if (data.favor?.dir) {
+              setFavorDirs(data.favor.dir);
+            }
+          })
+          .catch(err => console.error('Failed to fetch favor dirs:', err));
+      };
+      
+      fetchFavorDirs();
+      
+      // Listen for settings update
+      const handleSettingsUpdate = () => {
+        console.log('globalSettingsUpdated event received');
+        fetchFavorDirs();
+      };
+      window.addEventListener('globalSettingsUpdated', handleSettingsUpdate);
+      return () => window.removeEventListener('globalSettingsUpdated', handleSettingsUpdate);
+    }
+  }, [token]);
 
   // Reload config when switching to Preview tab
   useEffect(() => {
@@ -582,7 +680,7 @@ const App: React.FC = () => {
 
         <div id="mainCodeServer" className="absolute inset-0 bg-vsc-bg" style={{width: `calc(100vw - ${ttydWidth}px - 4px)`}}>
           <div className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center gap-1 px-2 z-10">
-            {([ 'Code','Settings', 'Agents', 'Preview'] as const).map(tab => (
+            {([ 'Code', 'Preview', 'Settings'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => {
@@ -595,35 +693,72 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
-          <div className="absolute left-0 right-0 h-8 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center px-2 gap-2" style={{top: '40px'}}>
-            <button 
-              onClick={() => alert('/home/w3c_offical')}
-              className="p-1 text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover rounded"
-              title="Home"
-            >
-              <Home size={16} />
-            </button>
-            <input 
-              className="flex-1 bg-vsc-bg text-vsc-text px-2 py-1 text-sm border border-vsc-border rounded" 
-              value={paneWorkspace} 
-              readOnly 
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  alert(paneWorkspace);
-                }
-              }}
-            />
-          </div>
           {isInteracting && <div className="absolute inset-0 z-20"></div>}
             {paneWorkspace && (
-              <div className="absolute inset-0" style={{marginTop: '72px', display: activeTab === 'Code' ? 'block' : 'none'}}>
-                <WebFrame codeServer loading="lazy" src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="code-server-iframe w-full h-full" style={{height: paneTtydPreview && showTtydInCode ? `calc(100% - ${ttydPreviewHeight}px)` : '100%'}} />
-                {paneTtydPreview && showTtydInCode && (
+              <div className="absolute inset-0 flex flex-col" style={{marginTop: '40px', display: activeTab === 'Code' ? 'flex' : 'none'}}>
+                {/* 区域 A: Code Server - 蓝色背景 */}
+                <div className="w-full flex-1 overflow-hidden flex flex-col" style={{display: isAgentsMaximized ? 'none' : 'flex', backgroundColor: 'rgba(0, 100, 255, 0.1)'}}>
+                  {/* Home + Path Input */}
+                  <div className="h-8 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center px-2 gap-2 flex-shrink-0">
+                    <button 
+                      onClick={() => navigateToPath(paneWorkspace, true)}
+                      className="p-1 text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover rounded"
+                      title="Home"
+                    >
+                      <Home size={16} />
+                    </button>
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowFavorDirs(!showFavorDirs)}
+                        className="p-1 text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover rounded"
+                        title="Favorite Directories"
+                      >
+                        <Folder size={16} />
+                      </button>
+                      {showFavorDirs && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowFavorDirs(false)}></div>
+                          <div className="absolute top-full left-0 mt-1 bg-vsc-bg-secondary border border-vsc-border rounded shadow-lg z-20 min-w-[400px] max-w-[600px]">
+                            {favorDirs.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-vsc-text-secondary">No favorite directories</div>
+                            ) : (
+                              favorDirs.map((dir, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    navigateToPath(dir);
+                                    setShowFavorDirs(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm text-vsc-text hover:bg-vsc-bg-hover"
+                                >
+                                  {dir}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <input 
+                      className="flex-1 bg-vsc-bg text-vsc-text px-2 py-1 text-sm border border-vsc-border rounded" 
+                      value={paneWorkspace} 
+                      onChange={(e) => setPaneWorkspace(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          navigateToPath(paneWorkspace);
+                        }
+                      }}
+                    />
+                  </div>
+                  <WebFrame codeServer loading="lazy" src={`https://code.cicy.de5.net/?folder=${paneWorkspace}`} className="code-server-iframe w-full flex-1" />
+                </div>
+                {showTtydInCode && (
                   <>
                     <div 
-                      className="absolute left-0 right-0 h-1 bg-vsc-border hover:bg-vsc-accent cursor-row-resize z-10"
-                      style={{bottom: `${ttydPreviewHeight}px`}}
+                      className="w-full h-1 bg-vsc-border hover:bg-vsc-accent cursor-row-resize flex-shrink-0"
+                      style={{display: (isAgentsMinimized || isAgentsMaximized) ? 'none' : 'block'}}
                       onMouseDown={(e) => {
+                        if (isAgentsMinimized || isAgentsMaximized) return;
                         e.preventDefault();
                         setIsDragging(true);
                         const startY = e.clientY;
@@ -643,57 +778,95 @@ const App: React.FC = () => {
                       }}
                     ></div>
                     {isDragging && <div className="absolute inset-0 z-20"></div>}
-                    <div className="ttyd-preview-container absolute bottom-0 left-0 right-0 bg-vsc-bg-secondary" style={{height: `${ttydPreviewHeight}px`}}>
-                      <div className="h-8 bg-vsc-bg-secondary border-t border-vsc-border flex items-center justify-between px-3">
-                        <span className="text-xs text-vsc-text-secondary">Terminal Preview</span>
-                        <div className="flex gap-2">
+                    {/* 区域 B: Agents - 红色背景 */}
+                    <div className="agents-container w-full flex-shrink-0 flex flex-col" style={{height: `${ttydPreviewHeight}px`, backgroundColor: 'rgba(255, 0, 0, 0.1)'}}>
+                      <div className="h-8 bg-vsc-bg-secondary border-t border-vsc-border flex items-center justify-between px-3 flex-shrink-0">
+                        <span className="text-xs text-vsc-text-secondary">Agents</span>
+                        <div className="flex gap-4 items-center">
+                          {!isAgentsMinimized && (
+                            <AgentControls 
+                              paneId={BOT_NAME} 
+                              token={token} 
+                              boundAgents={boundAgents}
+                              onAgentAdded={() => {
+                                console.log('Current boundAgents:', boundAgents);
+                              }} 
+                            />
+                          )}
                           <button
-                            className="show-btn hidden text-vsc-link hover:text-blue-300 text-xs"
                             onClick={() => {
-                              const container = document.querySelector('.ttyd-preview-container') as HTMLElement;
-                              const codeIframe = document.querySelector('.code-server-iframe') as HTMLElement;
-                              const iframe = container?.querySelector('iframe') as HTMLElement;
-                              const minBtn = container?.querySelector('.min-btn') as HTMLElement;
-                              const showBtn = container?.querySelector('.show-btn') as HTMLElement;
-                              if (iframe && minBtn && showBtn && container && codeIframe) {
-                                container.style.height = `${ttydPreviewHeight}px`;
-                                codeIframe.style.height = `calc(100% - ${ttydPreviewHeight}px)`;
-                                iframe.style.display = 'block';
-                                minBtn.style.display = 'block';
-                                showBtn.style.display = 'none';
+                              const container = document.querySelector('.agents-container') as HTMLElement;
+                              const agentsList = container?.querySelector('.flex-1') as HTMLElement;
+                              if (agentsList) {
+                                agentsList.style.display = 'none';
                               }
+                              setTtydPreviewHeight(32);
+                              setIsAgentsMinimized(true);
+                              setIsAgentsMaximized(false);
+                              localStorage.setItem(`${BOT_NAME}_ttydPreviewHeight`, '32');
                             }}
+                            className="text-vsc-text-secondary hover:text-vsc-text text-xs"
+                            title="Minimize"
                           >
-                            Show
+                            _
                           </button>
                           <button
-                            className="min-btn text-vsc-text-secondary hover:text-vsc-text"
-                            style={{marginTop: '-10px'}}
-                            title="Minimize"
                             onClick={() => {
-                              const container = document.querySelector('.ttyd-preview-container') as HTMLElement;
-                              const codeIframe = document.querySelector('.code-server-iframe') as HTMLElement;
-                              const iframe = container?.querySelector('iframe') as HTMLElement;
-                              const minBtn = container?.querySelector('.min-btn') as HTMLElement;
-                              const showBtn = container?.querySelector('.show-btn') as HTMLElement;
-                              if (iframe && minBtn && showBtn && container && codeIframe) {
-                                container.style.height = '32px';
-                                codeIframe.style.height = 'calc(100% - 32px)';
-                                iframe.style.display = 'none';
-                                minBtn.style.display = 'none';
-                                showBtn.style.display = 'block';
+                              const container = document.querySelector('.agents-container') as HTMLElement;
+                              const agentsList = container?.querySelector('.flex-1') as HTMLElement;
+                              if (agentsList) {
+                                agentsList.style.display = 'block';
                               }
+                              setTtydPreviewHeight(300);
+                              setIsAgentsMinimized(false);
+                              setIsAgentsMaximized(false);
+                              localStorage.setItem(`${BOT_NAME}_ttydPreviewHeight`, '300');
                             }}
+                            className="text-vsc-text-secondary hover:text-vsc-text text-xs"
+                            title="Medium"
                           >
-                            <span className="text-xs">_</span>
+                            □
+                          </button>
+                          <button
+                            onClick={() => {
+                              const container = document.querySelector('.agents-container') as HTMLElement;
+                              const agentsList = container?.querySelector('.flex-1') as HTMLElement;
+                              if (agentsList) {
+                                agentsList.style.display = 'block';
+                              }
+                              setTtydPreviewHeight(window.innerHeight - 72);
+                              setIsAgentsMinimized(false);
+                              setIsAgentsMaximized(true);
+                              localStorage.setItem(`${BOT_NAME}_ttydPreviewHeight`, (window.innerHeight - 72).toString());
+                            }}
+                            className="text-vsc-text-secondary hover:text-vsc-text text-xs"
+                            title="Maximize"
+                          >
+                            ▢
                           </button>
                         </div>
                       </div>
-                      <WebFrame
-                        src={`https://ttyd-proxy.cicy.de5.net/ttyd/${paneTtydPreview.replace(':main.0', '')}?token=${token}&m=1&mode=1`}
-                        className="w-full"
-                        style={{height: 'calc(100% - 32px)'}}
-                      />
+                      <div className="flex-1 overflow-hidden">
+                        <AgentsListView 
+                          paneId={BOT_NAME} 
+                          token={token} 
+                          isDragging={isDragging} 
+                          onAgentsChange={(agents) => setBoundAgents(agents)} 
+                          onCaptureOpen={setAgentCaptureOpen}
+                          onRestart={handleRestart}
+                          onCapture={handleCapturePane}
+                          onToggleMouse={async (paneId) => {
+                            try {
+                              await fetch(getApiUrl(`/api/tmux/mouse/toggle?pane_id=${encodeURIComponent(paneId)}`), {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                            } catch (err) {
+                              console.error('Failed to toggle mouse:', err);
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   </>
                 )}
@@ -703,7 +876,7 @@ const App: React.FC = () => {
           {activeTab === 'Preview' && (
             <>
               {previewUrls.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full bg-vsc-bg" style={{marginTop: '72px'}}>
+                <div className="flex flex-col items-center justify-center h-full bg-vsc-bg" style={{marginTop: '40px'}}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-vsc-text-muted mb-4">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="m21 21-4.35-4.35"/>
@@ -712,7 +885,7 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <div style={{position: 'absolute', top: '72px', left: 0, right: 0, height: '32px', background: '#2a2d2e', borderBottom: '1px solid #474747', display: 'flex', gap: '4px', padding: '4px'}}>
+                  <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#2a2d2e', borderBottom: '1px solid #474747', display: 'flex', gap: '4px', padding: '4px'}}>
                     {previewUrls.map((item: any, idx) => (
                       <button
                         key={idx}
@@ -735,7 +908,7 @@ const App: React.FC = () => {
                     ))}
                   </div>
                   {previewUrls.map((item: any, idx) => (
-                    <div key={idx} className="absolute inset-0" style={{marginTop: '104px', display: previewTab === idx ? 'block' : 'none'}}>
+                    <div key={idx} className="absolute inset-0" style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}>
                       <WebFrame
                         src={item.url || item}
                         className="w-full h-full"
@@ -747,14 +920,10 @@ const App: React.FC = () => {
               )}
             </>
           )}
-          {activeTab === 'Agents' && (
-            <div style={{marginTop: '72px', height: 'calc(100% - 72px)'}}>
-              <AgentsListView paneId={BOT_NAME} token={token} ttydPreview={paneTtydPreview} isDragging={isDragging} onAgentsChange={(agents) => setBoundAgents(agents)} onCaptureOpen={setAgentCaptureOpen} />
-            </div>
-          )}
           {activeTab === 'Settings' && (
-            <div style={{marginTop: '72px', height: 'calc(100% - 72px)'}}>
+            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
               <SettingsView 
+                token={token}
                 pane={{
                   target: TMUX_TARGET, 
                   title: paneTitle, 
@@ -832,106 +1001,116 @@ const App: React.FC = () => {
             if (target) target.style.display = 'block';
           }}
         >
-          <IframeTopbar
-            title={paneTitle || BOT_NAME}
-            workspace={paneWorkspace}
-            networkLatency={networkLatency}
-            networkStatus={networkStatus}
-            onTitleClick={() => setShowDesktopDialog(true)}
-            rightActions={
-              <>
-                <div className="relative">
-                  <button 
-                    type="button" 
-                    onClick={() => setShowMoreMenu(!showMoreMenu)} 
-                    className="p-1 rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active transition-colors" 
-                    title="More"
-                  >
-                    <MoreVertical size={12} />
-                  </button>
-                  {showMoreMenu && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}></div>
-                      <div className="absolute right-0 top-full mt-1 bg-vsc-bg border border-vsc-border rounded shadow-lg z-50 min-w-[180px]">
+          <div className="h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center justify-between px-2">
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 rounded text-sm bg-vsc-bg text-vsc-text hover:bg-vsc-bg-hover"
+              >
+                ttyd
+              </button>
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover"
+                title="Add"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-vsc-text-secondary">
+                <div className={`w-2 h-2 rounded-full ${networkStatus === 'excellent' ? 'bg-green-500' : networkStatus === 'good' ? 'bg-yellow-500' : networkStatus === 'poor' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
+                <span>{networkLatency}ms</span>
+              </div>
+              <div className="relative">
+                <button 
+                  type="button" 
+                  onClick={() => setShowMoreMenu(!showMoreMenu)} 
+                  className="p-1 rounded text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-active transition-colors" 
+                  title="More"
+                >
+                  <MoreVertical size={16} />
+                </button>
+                {showMoreMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}></div>
+                    <div className="absolute right-0 top-full mt-1 bg-vsc-bg border border-vsc-border rounded shadow-lg z-50 min-w-[180px]">
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const paneId = BOT_NAME.replace(':main.0', '');
+                          await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover"
+                      >
+                        ^bs Choose Session
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const paneId = BOT_NAME.replace(':main.0', '');
+                          await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <SplitSquareVertical size={12} /> Split Horizontal
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const paneId = BOT_NAME.replace(':main.0', '');
+                          await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <SplitSquareHorizontal size={12} /> Split Vertical
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const paneId = BOT_NAME.replace(':main.0', '');
+                          await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <XSquare size={12} /> Close Split
+                      </button>
+                      <div className="border-t border-vsc-border my-1"></div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (confirm('Reload this page?')) {
+                            if (mainIframeRef.current) {
+                              mainIframeRef.current.src = mainIframeRef.current.src;
+                            }
+                          }
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <RefreshCw size={12} /> Reload
+                      </button>
+                      {hasPermission('prompt') && (
                         <button 
                           type="button" 
-                          onClick={async () => {
-                            const paneId = BOT_NAME.replace(':main.0', '');
-                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/choose-session`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                            setShowMoreMenu(false);
-                          }} 
-                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover"
-                        >
-                          ^bs Choose Session
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={async () => {
-                            const paneId = BOT_NAME.replace(':main.0', '');
-                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=v`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                            setShowMoreMenu(false);
-                          }} 
-                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
-                        >
-                          <SplitSquareVertical size={12} /> Split Horizontal
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={async () => {
-                            const paneId = BOT_NAME.replace(':main.0', '');
-                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/split?direction=h`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-                            setShowMoreMenu(false);
-                          }} 
-                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
-                        >
-                          <SplitSquareHorizontal size={12} /> Split Vertical
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={async () => {
-                            const paneId = BOT_NAME.replace(':main.0', '');
-                            await fetch(getApiUrl(`/api/tmux/panes/${encodeURIComponent(paneId)}/unsplit`), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                          onClick={() => {
+                            handleRestart();
                             setShowMoreMenu(false);
                           }} 
                           className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
                         >
-                          <XSquare size={12} /> Close Split
+                          <RefreshCw size={12} className={isRestarting ? 'animate-spin' : ''} /> Restart
                         </button>
-                        <div className="border-t border-vsc-border my-1"></div>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            if (confirm('Reload this page?')) {
-                              if (mainIframeRef.current) {
-                                mainIframeRef.current.src = mainIframeRef.current.src;
-                              }
-                            }
-                            setShowMoreMenu(false);
-                          }} 
-                          className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
-                        >
-                          <RefreshCw size={12} /> Reload
-                        </button>
-                        {hasPermission('prompt') && (
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              handleRestart();
-                              setShowMoreMenu(false);
-                            }} 
-                            className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
-                          >
-                            <RefreshCw size={12} className={isRestarting ? 'animate-spin' : ''} /> Restart
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            }
-          />
-          <div className="relative w-full" style={{height: 'calc(100% - 40px)', marginTop: '40px'}}>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="relative w-full" style={{height: 'calc(100% - 40px)'}}>
             <WebFrame
               ref={mainIframeRef}
               loading="lazy"
@@ -1255,7 +1434,7 @@ const App: React.FC = () => {
           agentStatus={agentStatus}
           contextUsage={contextUsage}
           mouseMode={mouseMode}
-          onDraggingChange={setIsw1Dragging}
+          onDraggingChange={setIsDragging}
           isTogglingMouse={isTogglingMouse}
           onToggleMouse={handleToggleMouse}
           onReload={() => {
@@ -1324,7 +1503,7 @@ const App: React.FC = () => {
 
       {/* Toast notification */}
       {toast && (
-        <div className="fixed bottom-4 left-4 px-4 py-2 bg-vsc-button text-white text-sm font-medium rounded-lg shadow-lg border-2 border-blue-400" style={{zIndex: 999999999}}>
+        <div className="fixed bottom-4 right-4 px-4 py-3 bg-red-600 text-white text-sm font-medium rounded shadow-xl" style={{zIndex: 999999999}}>
           {toast}
         </div>
       )}
