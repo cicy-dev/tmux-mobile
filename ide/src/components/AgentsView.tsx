@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { getApiUrl } from '../services/apiUrl';
 
 interface Agent {
@@ -135,12 +135,6 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ paneId, token }) => {
                 <p className="text-white font-medium">{agent.name}</p>
                 <p className="text-xs text-vsc-text-secondary">{agent.status}</p>
               </div>
-              <button
-                onClick={() => handleRemoveAgent(agent.id)}
-                className="text-red-400 hover:text-red-300 p-2"
-              >
-                <Trash2 size={16} />
-              </button>
             </div>
           ))
         )}

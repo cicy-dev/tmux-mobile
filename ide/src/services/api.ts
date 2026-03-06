@@ -71,6 +71,10 @@ class ApiClient {
     return this.request('/api/tmux/panes');
   }
 
+  async getPane(paneId: string) {
+    return this.request(`/api/tmux/panes/${paneId}`);
+  }
+
   async getPaneConfig(paneId: string) {
     return this.request(`/api/ttyd/config/${paneId}`);
   }

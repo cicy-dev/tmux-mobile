@@ -3,6 +3,8 @@ import ApiClient from '../services/api';
 import { TokenManager } from '../services/tokenManager';
 import { PaneManager } from '../services/paneManager';
 
+const APP_VERSION = '0.0.3';
+
 interface Agent {
   pane_id: string;
   status?: string;
@@ -21,6 +23,8 @@ interface AppContextType {
   // Pane Selection
   currentPaneId: string | null;
   currentPane: Agent | undefined;
+  paneDetail: any | null;
+  setPaneDetail: (detail: any) => void;
   selectPane: (paneId: string) => void;
   clearPane: () => void;
 
@@ -34,6 +38,7 @@ interface AppContextType {
   
   // All Panes
   allPanes: Agent[];
+  updatePane: (paneId: string, updates: Partial<Agent>) => void;
   
   // UI State
   loading: boolean;
@@ -46,6 +51,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [currentPaneId, setCurrentPaneId] = useState<string | null>(null);
+  const [paneDetail, setPaneDetail] = useState<any | null>(null);
   const [api, setApi] = useState<ApiClient | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [allPanes, setAllPanes] = useState<Agent[]>([]);
@@ -69,12 +75,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLoading(false);
   }, []);
 
-  // Fetch all panes status
+  // Fetch all panes status with network monitoring
   useEffect(() => {
     if (!api) return;
     const fetchAllPanes = async () => {
+      const startTime = performance.now();
       try {
         const data = await api.getAgents();
+        const latency = Math.round(performance.now() - startTime);
+        
+        // Emit network latency event for UI
+        window.dispatchEvent(new CustomEvent('network-latency', { detail: { latency } }));
+        
         const panesArray = Object.values(data as Record<string, Agent>) || [];
         setAllPanes(panesArray);
         
@@ -86,6 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch (err) {
         console.error('Failed to fetch panes:', err);
+        window.dispatchEvent(new CustomEvent('network-latency', { detail: { latency: null } }));
       }
     };
     fetchAllPanes();
@@ -108,14 +121,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAgents([]);
   };
 
-  const selectPane = (paneId: string) => {
+  const selectPane = async (paneId: string) => {
     PaneManager.setCurrentPane(paneId);
     setCurrentPaneId(paneId);
+    
+    // Fetch detailed pane config
+    if (api) {
+      try {
+        const detail = await api.getPane(paneId);
+        setPaneDetail(detail);
+      } catch (err) {
+        console.error('Failed to fetch pane detail:', err);
+        setPaneDetail(null);
+      }
+    }
   };
 
   const clearPane = () => {
     PaneManager.clearCurrentPane();
     setCurrentPaneId(null);
+  };
+
+  const updatePane = (paneId: string, updates: Partial<Agent>) => {
+    setAllPanes(prev => prev.map(p => 
+      p.pane_id === paneId ? { ...p, ...updates } : p
+    ));
   };
 
   const loadAgents = async () => {
@@ -157,6 +187,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logout,
     currentPaneId,
     currentPane: allPanes.find(p => p.pane_id === currentPaneId),
+    paneDetail,
+    setPaneDetail,
     selectPane,
     clearPane,
     api,
@@ -164,6 +196,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadAgents,
     removeAgent,
     allPanes,
+    updatePane,
     loading,
     error,
     setError,
@@ -171,7 +204,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Debug: Log context changes
   React.useEffect(() => {
-    console.log('[AppContext] State updated:', {
+    console.debug('[AppContext] State updated:', {
       currentPaneId,
       currentPane: allPanes.find(p => p.pane_id === currentPaneId),
       allPanesCount: allPanes.length,
@@ -190,7 +223,7 @@ export const useApp = () => {
   
   // Expose to window for debugging
   if (typeof window !== 'undefined') {
-    (window as any).__APP_CONTEXT__ = context;
+    (window as any).__APP_CONTEXT__ = { ...context, version: APP_VERSION };
   }
   
   return context;

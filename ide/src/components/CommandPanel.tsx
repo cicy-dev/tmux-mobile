@@ -232,11 +232,15 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
           body: JSON.stringify({ text: cmd })
         });
         const data = await res.json();
-        if (data.success && data.result && Array.isArray(data.result)) {
+        console.log('[correctEnglish] Response:', data);
+        if (data.success && data.result && Array.isArray(data.result) && data.result.length > 0) {
           setCorrectedResult(data.result);
           if (onShowCorrection) {
+            console.log('[correctEnglish] Calling onShowCorrection with:', data.result);
             onShowCorrection(data.result);
           }
+        } else {
+          console.warn('[correctEnglish] Invalid response format:', data);
         }
       } catch (e) { 
         console.error('Correct English error:', e); 

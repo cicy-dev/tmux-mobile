@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Loader2, SplitSquareHorizontal, SplitSquareVertical, XSquare, Home, RefreshCw, MoreVertical, Folder } from 'lucide-react';
+import { Loader2, SplitSquareHorizontal, SplitSquareVertical, XSquare, Home, RefreshCw, MoreVertical, Folder, Pin, Unlink, ExternalLink, RotateCw, Trash2 } from 'lucide-react';
 import { CommandPanel, CommandPanelHandle } from './components/CommandPanel';
 import { VoiceFloatingButton } from './components/VoiceFloatingButton';
 import { LoginForm } from './components/LoginForm';
@@ -9,6 +9,7 @@ import { SettingsView } from './components/SettingsView';
 import { AgentsListView } from './components/AgentsListView';
 import { AgentsRightView } from './components/AgentsRightView';
 import { CaptureDialog } from './components/CaptureDialog';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { getApiUrl,API_BASE } from './services/apiUrl';
 import { AppSettings, Position, Size } from './types';
 import { WebFrame } from './components/WebFrame';
@@ -43,7 +44,7 @@ declare global {
 }
 
 const App: React.FC = () => {
-  const { currentPaneId, allPanes, currentPane } = useApp();
+  const { currentPaneId, allPanes, currentPane, paneDetail, api, setPaneDetail, updatePane, selectPane } = useApp();
   const MODE = "ttyd";
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -90,6 +91,7 @@ const App: React.FC = () => {
   const [correctionData, setCorrectionData] = useState<[string, string] | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showDesktopDialog, setShowDesktopDialog] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const [isInteracting, setIsInteracting] = useState(false);
   const [editingPane, setEditingPane] = useState<EditPaneData | null>(null);
@@ -112,15 +114,19 @@ const App: React.FC = () => {
   const [visitedPanes, setVisitedPanes] = useState<string[]>([]);
 
   // Use Context values directly
-  const displayPaneId = currentPaneId || CurrentPaneId || '';
-  const displayPaneTitle = currentPane?.title || displayPaneId || 'No pane selected';
+  const displayPaneId = currentPaneId || CurrentPaneId;
+  const displayPaneTitle = paneDetail?.title || currentPane?.title || displayPaneId || 'No pane selected';
 
   const hasPermission = (perm: string) => userPerms.includes('api_full') || userPerms.includes(perm);
 
   // Add displayPaneId to visitedPanes when it changes
   useEffect(() => {
-    if (displayPaneId && !visitedPanes.includes(displayPaneId)) {
-      setVisitedPanes(prev => [...prev, displayPaneId]);
+    if (displayPaneId && displayPaneId !== '' && displayPaneId !== 'undefined') {
+      setVisitedPanes(prev => {
+        if (prev.includes(displayPaneId)) return prev;
+        const cleaned = prev.filter(id => id && id !== '' && id !== 'undefined');
+        return [...cleaned, displayPaneId];
+      });
     }
   }, [displayPaneId]);
 
@@ -408,34 +414,55 @@ const App: React.FC = () => {
     }
   }, [activeTab, token]);
 
-  // --- Agent status polling (also updates network status) ---
+  // --- Network status from AppContext polling ---
   useEffect(() => {
-    if (!token) return;
-    const poll = async () => {
-      const startTime = performance.now();
-      try {
-        const { data } = await axios.get(
-          `${API_BASE}/api/tmux/status?id=${encodeURIComponent(CurrentPaneId)}`,
-          {
-            headers: { 'Authorization': `Bearer ${token}` },
-            timeout: 1500
-          }
-        );
-        const latency = Math.round(performance.now() - startTime);
-        console.debug(`[agent-status] ${data.status} | ${data.raw}`, data);
-        setAgentStatus(data.status);
-        if (data.contextUsage != null) setContextUsage(data.contextUsage);
-        setNetworkLatency(latency);
-        setNetworkStatus(latency < 100 ? 'excellent' : latency < 300 ? 'good' : 'poor');
-      } catch {
+    // Get agent status from currentPane
+    if (currentPane) {
+      setAgentStatus(currentPane.status || null);
+      if (currentPane.contextUsage != null) setContextUsage(currentPane.contextUsage);
+    }
+  }, [currentPane]);
+
+  // Initialize tempPaneData when paneDetail changes (but not during save)
+  useEffect(() => {
+    if (paneDetail && !isSavingPane) {
+      setTempPaneData({
+        target: paneDetail.pane_id || displayPaneId,
+        title: paneDetail.title || '',
+        workspace: paneDetail.workspace || '/home/w3c_offical',
+        agent_duty: paneDetail.agent_duty || '',
+        agent_type: paneDetail.agent_type || '',
+        init_script: paneDetail.init_script || '',
+        config: paneDetail.config || '{}',
+        tg_token: paneDetail.tg_token || '',
+        tg_chat_id: paneDetail.tg_chat_id || '',
+        tg_enable: paneDetail.tg_enable || false,
+        active: paneDetail.active !== 0,
+        ttyd_preview: paneDetail.ttyd_preview || ''
+      });
+    }
+  }, [paneDetail, displayPaneId, isSavingPane]);
+
+  // Clear tempPaneData when switching panes
+  useEffect(() => {
+    setTempPaneData(null);
+  }, [currentPaneId]);
+
+  // Listen to network latency events
+  useEffect(() => {
+    const handleLatency = (e: CustomEvent) => {
+      const { latency } = e.detail;
+      if (latency === null) {
         setNetworkStatus('offline');
         setNetworkLatency(null);
+      } else {
+        setNetworkLatency(latency);
+        setNetworkStatus(latency < 100 ? 'excellent' : latency < 300 ? 'good' : 'poor');
       }
     };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
-  }, [token]);
+    window.addEventListener('network-latency', handleLatency as EventListener);
+    return () => window.removeEventListener('network-latency', handleLatency as EventListener);
+  }, []);
 
   useEffect(() => {
     if (toast) {
@@ -869,48 +896,50 @@ const App: React.FC = () => {
             </div>
           )}
           {activeTab === 'Settings' && (
-            <div style={{marginTop: '40px', height: 'calc(100% - 40px)'}}>
-              <SettingsView 
-                pane={{
-                  target: TMUX_TARGET, 
-                  title: paneTitle, 
-                  workspace: paneWorkspace, 
-                  agent_duty: paneAgentDuty, 
-                  agent_type: paneAgentType, 
-                  init_script: paneInitScript,
-                  config: paneConfig,
-                  tg_token: paneTgToken,
-                  tg_chat_id: paneTgChatId,
-                  tg_enable: paneTgEnable,
-                  ttyd_preview: paneTtydPreview
-                }}
-                onChange={(pane) => {
-                  setPaneTitle(pane.title);
-                  setPaneWorkspace(pane.workspace || '/home/w3c_offical');
-                  setPaneAgentDuty(pane.agent_duty || '');
-                  setPaneAgentType(pane.agent_type || '');
-                  setPaneInitScript(pane.init_script || '');
-                  setPaneConfig(pane.config || '{}');
-                  setPaneTgToken(pane.tg_token || '');
-                  setPaneTgChatId(pane.tg_chat_id || '');
-                  setPaneTgEnable(pane.tg_enable || false);
-                  setPaneTtydPreview(pane.ttyd_preview || '');
-                  setPaneTgChatId(pane.tg_chat_id || '');
-                  setPaneTgEnable(pane.tg_enable || false);
-                  
-                  // Update previewUrls from config
+            <div style={{marginTop: '40px', height: 'calc(100% - 40px)', position: 'relative'}}>
+              {!tempPaneData ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-vsc-bg bg-opacity-80 z-50">
+                  <Loader2 className="w-8 h-8 text-vsc-text-secondary animate-spin" />
+                </div>
+              ) : (
+                <SettingsView 
+                  pane={tempPaneData}
+                  onChange={(pane) => setTempPaneData(pane)}
+                onSave={async () => {
+                  if (!tempPaneData || !tempPaneData.target) return;
+                  setIsSavingPane(true);
                   try {
-                    const config = JSON.parse(pane.config || '{}');
-                    setPreviewUrls(config.previewUrls || []);
-                  } catch (e) {
-                    console.error('Failed to parse config:', e);
+                    await fetch(getApiUrl(`/api/tmux/panes/${tempPaneData.target}`), {
+                      method: 'PATCH',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify(tempPaneData)
+                    });
+                    
+                    // Update paneDetail immediately
+                    if (api) {
+                      const updated = await api.getPane(tempPaneData.target);
+                      setPaneDetail(updated);
+                    }
+                    
+                    // Update allPanes with new data
+                    updatePane(tempPaneData.target, {
+                      title: tempPaneData.title,
+                      workspace: tempPaneData.workspace,
+                      agent_type: tempPaneData.agent_type,
+                      agent_duty: tempPaneData.agent_duty
+                    });
+                  } catch (err) {
+                    console.error('Failed to save pane:', err);
+                  } finally {
+                    setIsSavingPane(false);
                   }
-                  
-                  setTempPaneData(pane);
                 }}
-                onSave={handleSavePane}
                 isSaving={isSavingPane}
               />
+              )}
             </div>
           )}
           {isDragging && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 z-20"></div>}
@@ -957,6 +986,33 @@ const App: React.FC = () => {
                 >
                   {displayPaneTitle}
                 </button>
+                {displayPaneId && (
+                  <button
+                    onClick={() => {
+                      const saved = localStorage.getItem('pinnedPanes');
+                      const pinned = saved ? JSON.parse(saved) : [];
+                      const isPinned = pinned.includes(displayPaneId);
+                      const updated = isPinned 
+                        ? pinned.filter((id: string) => id !== displayPaneId)
+                        : [...pinned, displayPaneId];
+                      localStorage.setItem('pinnedPanes', JSON.stringify(updated));
+                      window.dispatchEvent(new CustomEvent('pinnedPanesChanged'));
+                    }}
+                    className="p-1 hover:bg-vsc-bg-hover rounded"
+                    title={(() => {
+                      const saved = localStorage.getItem('pinnedPanes');
+                      const pinned = saved ? JSON.parse(saved) : [];
+                      return pinned.includes(displayPaneId) ? 'Unpin' : 'Pin';
+                    })()}
+                  >
+                    <Pin className={`w-4 h-4 ${(() => {
+                      const saved = localStorage.getItem('pinnedPanes');
+                      const pinned = saved ? JSON.parse(saved) : [];
+                      return pinned.includes(displayPaneId) ? 'text-yellow-500 fill-yellow-500' : 'text-vsc-text-secondary';
+                    })()}`} />
+                  </button>
+                )}
+                <span className="text-xs text-vsc-text-secondary px-2">v0.0.3</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -976,7 +1032,7 @@ const App: React.FC = () => {
                 {showMoreMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}></div>
-                    <div className="absolute right-0 top-full mt-1 bg-vsc-bg border border-vsc-border rounded shadow-lg z-50 min-w-[180px]">
+                    <div id="middle-top-dropdown" className="absolute right-0 top-full mt-1 bg-vsc-bg border border-vsc-border rounded shadow-lg z-50 min-w-[180px]">
                       <button 
                         type="button" 
                         onClick={async () => {
@@ -1048,6 +1104,27 @@ const App: React.FC = () => {
                           <RefreshCw size={12} className={isRestarting ? 'animate-spin' : ''} /> Restart
                         </button>
                       )}
+                      <div className="border-t border-vsc-border my-1"></div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          window.open(`https://ttyd-proxy.cicy.de5.net/ttyd/${displayPaneId}/?token=${token}`, '_blank');
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-vsc-text hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <ExternalLink size={12} /> Open in New Tab
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setShowRemoveConfirm(true);
+                          setShowMoreMenu(false);
+                        }} 
+                        className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-vsc-bg-hover flex items-center gap-2"
+                      >
+                        <Trash2 size={12} /> Remove Agent
+                      </button>
                     </div>
                   </>
                 )}
@@ -1065,7 +1142,7 @@ const App: React.FC = () => {
             }} />}
             
             {showHistoryOverlay && historyData && (
-              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1, display: 'flex', flexDirection: 'column'}}>
+              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', flexDirection: 'column'}}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #474747', backgroundColor: '#1e1e1e'}}>
                   <span style={{fontSize: '14px', color: '#cccccc', fontWeight: 500}}>Command History</span>
                   <button onClick={() => setShowHistoryOverlay(false)} style={{color: '#858585', background: 'none', border: 'none', cursor: 'pointer'}}>
@@ -1112,7 +1189,7 @@ const App: React.FC = () => {
               </div>
             )}
             {/* Terminal iframes - keep all visited panes loaded */}
-            {visitedPanes.map((paneId) => (
+            {visitedPanes.filter(id => id && id !== '' && id !== 'undefined').map((paneId) => (
               <div 
                 key={`terminal-${paneId}`} 
                 className="absolute inset-0" 
@@ -1147,7 +1224,7 @@ const App: React.FC = () => {
             <div className="absolute bottom-0 left-0 right-0" style={{height: `${commandPanelHeight}px`}}>
               {/* Correction Result */}
               {showCorrectionResult && correctionData ? (
-                <div style={{position: 'absolute', bottom: `${commandPanelHeight + 4}px`, left: 0, right: 0, maxHeight: "300px", minHeight: "140px"}}>
+                <div style={{position: 'absolute', bottom: `${commandPanelHeight + 4}px`, left: 0, right: 0, maxHeight: "300px", minHeight: "140px", zIndex: 1000}}>
                   <div style={{width: '100%', height: '100%', backgroundColor: '#1e1e1e', border: '1px solid #474747', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative'}}>
                     {/* Top bar */}
                     <div style={{height: '32px', backgroundColor: '#252526', borderBottom: '1px solid #474747', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', flexShrink: 0}}>
@@ -1281,9 +1358,6 @@ const App: React.FC = () => {
                     setShowCorrectionResult(true);
                     setShowHistoryOverlay(false);
                   }
-                }}
-                onCorrectionLoading={(loading) => {
-                  setIsCorrectingEnglish(loading);
                 }}
                 agentStatus={agentStatus}
                 contextUsage={contextUsage}
@@ -1431,6 +1505,24 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {showRemoveConfirm && (
+        <ConfirmDialog
+          message={`Remove agent ${displayPaneId}? This will delete the pane.`}
+          onConfirm={async () => {
+            await fetch(getApiUrl(`/api/agents/${encodeURIComponent(displayPaneId)}`), {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const otherPane = allPanes.find(p => p.pane_id !== displayPaneId);
+            if (otherPane) {
+              selectPane(otherPane.pane_id);
+            }
+            setShowRemoveConfirm(false);
+          }}
+          onCancel={() => setShowRemoveConfirm(false)}
+        />
+      )}
     </div>
   );
 };
@@ -1465,7 +1557,7 @@ const MiddlePanel: React.FC = () => {
 };
 
 const LeftSidePanel: React.FC = () => {
-  const { allPanes, currentPaneId, selectPane } = useApp();
+  const { allPanes, currentPaneId, selectPane, paneDetail } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedPanes, setPinnedPanes] = useState<string[]>(() => {
     const saved = localStorage.getItem('pinnedPanes');
@@ -1474,6 +1566,16 @@ const LeftSidePanel: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<{paneId: string; title: string} | null>(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  
+  // Listen to pin changes from middle bar
+  useEffect(() => {
+    const handlePinChange = () => {
+      const saved = localStorage.getItem('pinnedPanes');
+      setPinnedPanes(saved ? JSON.parse(saved) : []);
+    };
+    window.addEventListener('pinnedPanesChanged', handlePinChange);
+    return () => window.removeEventListener('pinnedPanesChanged', handlePinChange);
+  }, []);
   
   const formatTimeAgo = (timestamp: string) => {
     const now = Date.now();
@@ -1509,17 +1611,6 @@ const LeftSidePanel: React.FC = () => {
     console.log('Create pane with title:', newTitle);
     setCreateDialog(false);
     setNewTitle('');
-  };
-  
-  const togglePin = (paneId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setPinnedPanes(prev => {
-      const newPinned = prev.includes(paneId) 
-        ? prev.filter(id => id !== paneId)
-        : [...prev, paneId];
-      localStorage.setItem('pinnedPanes', JSON.stringify(newPinned));
-      return newPinned;
-    });
   };
   
   const handleDelete = async () => {
@@ -1579,7 +1670,11 @@ const LeftSidePanel: React.FC = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="text-sm font-medium text-vsc-text truncate">{pane.title || pane.pane_id}</div>
+                      <div className="text-sm font-medium text-vsc-text truncate">
+                        {currentPaneId === pane.pane_id && paneDetail?.title 
+                          ? paneDetail.title 
+                          : (pane.title || pane.pane_id)}
+                      </div>
                       {pane.agent_type && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-purple-600 bg-opacity-30 text-purple-400 flex-shrink-0">
                           {pane.agent_type}
@@ -1609,25 +1704,6 @@ const LeftSidePanel: React.FC = () => {
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={(e) => togglePin(pane.pane_id, e)}
-                    className="px-2 py-1 text-xs text-vsc-text-secondary hover:text-vsc-accent"
-                    title={isPinned ? '取消置顶' : '置顶'}
-                  >
-                    {isPinned ? '📌' : '📍'}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirm({paneId: pane.pane_id, title: pane.title || pane.pane_id});
-                    }}
-                    className="px-2 py-1 text-xs text-red-500 hover:text-red-400"
-                    title="删除"
-                  >
-                    ×
-                  </button>
                 </div>
               </div>
             </div>

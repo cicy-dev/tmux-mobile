@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Plus, Trash2, RotateCw, ExternalLink } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { getApiUrl } from '../services/apiUrl';
 import { WebFrame } from './WebFrame';
 
@@ -264,24 +264,6 @@ export const AgentsListView: React.FC<AgentsListViewProps> = ({ paneId, token, t
                 <span className="text-white text-sm font-medium px-2 py-1">
                   {agent.title || agent.name.replace(':main.0', '')}
                 </span>
-                <button
-                  onClick={() => window.open(`https://ide.cicy.de5.net/ttyd/${agent.name}/?token=${token}`, '_blank')}
-                  className="text-green-400 hover:text-green-300 bg-vsc-bg/80 p-1 rounded"
-                >
-                  <ExternalLink size={14} />
-                </button>
-                <button
-                  onClick={() => handleReloadIframe(agent.name)}
-                  className="text-vsc-link hover:text-blue-300 bg-vsc-bg/80 p-1 rounded"
-                >
-                  <RotateCw size={14} />
-                </button>
-                <button
-                  onClick={() => handleRemoveAgent(agent.id)}
-                  className="text-red-400 hover:text-red-300 bg-vsc-bg/80 p-1 rounded"
-                >
-                  <Trash2 size={14} />
-                </button>
               </div>
               <WebFrame
                 loading="lazy"
