@@ -583,6 +583,7 @@ export const CommandPanel = forwardRef<CommandPanelHandle, CommandPanelProps>(({
               }}
               placeholder="Type command..."
               className="w-full h-full bg-black/50 text-white rounded-lg border border-gray-700 p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-sm shadow-inner placeholder:text-gray-600 placeholder:opacity-50"
+              style={{paddingRight: '44px'}}
               disabled={isSending}
             />
           </div>

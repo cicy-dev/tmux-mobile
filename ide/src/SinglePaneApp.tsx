@@ -44,7 +44,7 @@ declare global {
 }
 
 const App: React.FC = () => {
-  const { currentPaneId, allPanes, currentPane, paneDetail, api, setPaneDetail, updatePane, selectPane } = useApp();
+  const { currentPaneId, allPanes, currentPane, paneDetail, api, setPaneDetail, updatePane, selectPane, globalVar, loadGlobalVar, updateGlobalVar } = useApp();
   const MODE = "ttyd";
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -91,6 +91,8 @@ const App: React.FC = () => {
   });
   const [showHistoryOverlay, setShowHistoryOverlay] = useState(false);
   const [historyData, setHistoryData] = useState<{history: string[], onSelect: (cmd: string) => void} | null>(null);
+  const [showCommonPromptOverlay, setShowCommonPromptOverlay] = useState(false);
+  const [commonPromptText, setCommonPromptText] = useState('');
   const [showCorrectionResult, setShowCorrectionResult] = useState(false);
   const [correctionData, setCorrectionData] = useState<[string, string] | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -207,12 +209,26 @@ const App: React.FC = () => {
           setShowCorrectionResult(false);
         } else if (showHistoryOverlay) {
           setShowHistoryOverlay(false);
+        } else if (showCommonPromptOverlay) {
+          setShowCommonPromptOverlay(false);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showCorrectionResult, showHistoryOverlay, showDesktopDialog]);
+  }, [showCorrectionResult, showHistoryOverlay, showDesktopDialog, showCommonPromptOverlay]);
+
+  // Listen for common prompt event
+  useEffect(() => {
+    const handleShowCommonPrompt = () => {
+      setShowCommonPromptOverlay(!showCommonPromptOverlay);
+      if (!showCommonPromptOverlay) {
+        setCommonPromptText(paneDetail?.common_prompt || '');
+      }
+    };
+    window.addEventListener('show-common-prompt', handleShowCommonPrompt as EventListener);
+    return () => window.removeEventListener('show-common-prompt', handleShowCommonPrompt as EventListener);
+  }, [showCommonPromptOverlay, paneDetail]);
 
   const [isTogglingMouse, setIsTogglingMouse] = useState(false);
 
@@ -367,35 +383,12 @@ const App: React.FC = () => {
     if (isLoaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings, isLoaded]);
 
-  // Fetch favor dirs
+  // Get favor dirs from globalVar
   useEffect(() => {
-    if (token) {
-      const fetchFavorDirs = () => {
-        console.log('Fetching favor dirs...');
-        fetch(`${API_BASE}/api/settings/global`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-          .then(res => res.json())
-          .then(data => {
-            console.log('Favor dirs data:', data);
-            if (data.favor?.dir) {
-              setFavorDirs(data.favor.dir);
-            }
-          })
-          .catch(err => console.error('Failed to fetch favor dirs:', err));
-      };
-      
-      fetchFavorDirs();
-      
-      // Listen for settings update
-      const handleSettingsUpdate = () => {
-        console.log('globalSettingsUpdated event received');
-        fetchFavorDirs();
-      };
-      window.addEventListener('globalSettingsUpdated', handleSettingsUpdate);
-      return () => window.removeEventListener('globalSettingsUpdated', handleSettingsUpdate);
+    if (globalVar?.favor?.dir) {
+      setFavorDirs(globalVar.favor.dir);
     }
-  }, [token]);
+  }, [globalVar]);
 
   // Reload config when switching to Preview tab
   useEffect(() => {
@@ -451,6 +444,16 @@ const App: React.FC = () => {
   useEffect(() => {
     setTempPaneData(null);
   }, [currentPaneId]);
+
+  // Load paneDetail when Settings tab is opened
+  useEffect(() => {
+    if (activeTab === 'Settings' && !paneDetail && api && displayPaneId) {
+      api.getPane(displayPaneId).then(setPaneDetail).catch(console.error);
+    }
+    if (activeTab === 'Global') {
+      loadGlobalVar();
+    }
+  }, [activeTab, displayPaneId, api, loadGlobalVar]);
 
   // Listen to network latency events
   useEffect(() => {
@@ -720,14 +723,14 @@ const App: React.FC = () => {
         MODE === "ttyd" && <div id="main" className="fixed inset-0"> 
 
         {/* Column 1: Left - Agents List */}
-        <div id="left-side" className="absolute inset-y-0 left-0 w-[360px] bg-vsc-bg-secondary border-r border-vsc-border z-10 overflow-hidden">
+        <div id="left-side" className="absolute inset-y-0 left-0 w-[240px] bg-vsc-bg-secondary border-r border-vsc-border z-10 overflow-hidden">
           <LeftSidePanel />
         </div>
 
         {/* Column 3: Right - Code/Agents/Preview/Settings */}
-        <div id="right-side" className="absolute inset-0 bg-vsc-bg" style={{left: `calc(360px + ${ttydWidth}px)`, width: `calc(100vw - 360px - ${ttydWidth}px - 4px)`}}>
+        <div id="right-side" className="absolute inset-0 bg-vsc-bg" style={{left: `calc(240px + ${ttydWidth}px)`, width: `calc(100vw - 240px - ${ttydWidth}px - 4px)`}}>
           <div id="right-side-top" className="absolute top-0 left-0 right-0 h-10 bg-vsc-bg-titlebar border-b border-vsc-border flex items-center gap-1 px-2 z-10">
-            {([ 'Code', 'Agents', 'Preview', 'Settings'] as const).map(tab => (
+            {([ 'Code', 'Agents', 'Preview', 'Settings', 'Global'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => {
@@ -748,7 +751,7 @@ const App: React.FC = () => {
                   {/* Home + Path Input */}
                   <div className=".bg-vsc-bg h-8 border-b border-vsc-border flex items-center px-2 gap-2 flex-shrink-0">
                     <button 
-                      onClick={() => navigateToPath(paneWorkspace, true)}
+                      onClick={() => navigateToPath(paneDetail?.workspace || paneWorkspace, true)}
                       className="p-1 text-vsc-text-secondary hover:text-vsc-text hover:bg-vsc-bg-hover rounded"
                       title="Home"
                     >
@@ -804,7 +807,7 @@ const App: React.FC = () => {
             )}
           {activeTab === 'Preview' && (
             <>
-              {previewUrls.length === 0 ? (
+              {!globalVar?.favor?.previewUrls || globalVar.favor.previewUrls.filter((item: any) => item.enable).length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full bg-vsc-bg" style={{marginTop: '40px'}}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-vsc-text-muted mb-4">
                     <circle cx="11" cy="11" r="8"/>
@@ -815,7 +818,7 @@ const App: React.FC = () => {
               ) : (
                 <>
                   <div style={{position: 'absolute', top: '40px', left: 0, right: 0, height: '32px', background: '#2a2d2e', borderBottom: '1px solid #474747', display: 'flex', gap: '4px', padding: '4px'}}>
-                    {previewUrls.map((item: any, idx) => (
+                    {globalVar.favor.previewUrls.filter((item: any) => item.enable).map((item: any, idx) => (
                       <button
                         key={idx}
                         onClick={() => {
@@ -836,7 +839,7 @@ const App: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  {previewUrls.map((item: any, idx) => (
+                  {globalVar.favor.previewUrls.filter((item: any) => item.enable).map((item: any, idx) => (
                     <div key={idx} className="absolute inset-0" style={{marginTop: '72px', display: previewTab === idx ? 'block' : 'none'}}>
                       <WebFrame
                         src={item.url || item}
@@ -923,23 +926,24 @@ const App: React.FC = () => {
                   if (!tempPaneData || !tempPaneData.target) return;
                   setIsSavingPane(true);
                   try {
-                    await fetch(getApiUrl(`/api/tmux/panes/${tempPaneData.target}`), {
+                    const { target, ...dataToSave } = tempPaneData;
+                    await fetch(getApiUrl(`/api/tmux/panes/${target}`), {
                       method: 'PATCH',
                       headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                       },
-                      body: JSON.stringify(tempPaneData)
+                      body: JSON.stringify(dataToSave)
                     });
                     
                     // Update paneDetail immediately
                     if (api) {
-                      const updated = await api.getPane(tempPaneData.target);
+                      const updated = await api.getPane(target);
                       setPaneDetail(updated);
                     }
                     
                     // Update allPanes with new data
-                    updatePane(tempPaneData.target, {
+                    updatePane(target, {
                       title: tempPaneData.title,
                       workspace: tempPaneData.workspace,
                       agent_type: tempPaneData.agent_type,
@@ -952,15 +956,44 @@ const App: React.FC = () => {
                   }
                 }}
                 isSaving={isSavingPane}
-              />
+                />
               )}
             </div>
           )}
-          {isDragging && activeTab !== 'Settings' && activeTab !== 'Agents' && <div className="absolute inset-0 z-20"></div>}
+          {activeTab === 'Global' && (
+            <div style={{marginTop: '40px', height: 'calc(100% - 40px)', padding: '16px'}}>
+              <div className="flex flex-col h-full">
+                <label className="block text-xs text-vsc-text-secondary mb-2">Global Settings (JSON)</label>
+                <textarea 
+                  id="global-settings-textarea"
+                  defaultValue={JSON.stringify(globalVar, null, 2)}
+                  className="flex-1 w-full bg-vsc-bg-secondary border border-vsc-border text-vsc-text text-sm font-mono rounded px-3 py-2 focus:outline-none focus:border-vsc-accent resize-none"
+                />
+                <button 
+                  onClick={async () => {
+                    try {
+                      const textarea = document.getElementById('global-settings-textarea') as HTMLTextAreaElement;
+                      const data = JSON.parse(textarea.value);
+                      await updateGlobalVar(data);
+                      setToast('Global settings saved');
+                      setTimeout(() => setToast(null), 3000);
+                    } catch (err) {
+                      setToast('Invalid JSON or save failed');
+                      setTimeout(() => setToast(null), 3000);
+                    }
+                  }} 
+                  className="mt-3 w-full bg-vsc-button hover:bg-vsc-button-hover text-white text-sm font-medium py-2 rounded"
+                >
+                  Save Global Settings
+                </button>
+              </div>
+            </div>
+          )}
+          {isDragging && activeTab !== 'Settings' && activeTab !== 'Agents' && activeTab !== 'Global' && <div className="absolute inset-0 z-20"></div>}
         </div>
         <div id="drag" 
           className="absolute inset-y-0 w-1 bg-vsc-border hover:bg-vsc-accent cursor-col-resize z-10"
-          style={{left: `calc(360px + ${ttydWidth}px)`}}
+          style={{left: `calc(240px + ${ttydWidth}px)`}}
           onMouseDown={(e) => {
             e.preventDefault();
             setIsDragging(true);
@@ -986,7 +1019,7 @@ const App: React.FC = () => {
         <div 
           id="main-middle" 
           className="absolute inset-0" 
-          style={{width: `${ttydWidth}px`, left: '360px'}}
+          style={{width: `${ttydWidth}px`, left: '240px'}}
           onMouseLeave={(e) => {
             const target = e.currentTarget.querySelector('.ttyd-mask') as HTMLElement;
             if (target) target.style.display = 'block';
@@ -1137,17 +1170,17 @@ const App: React.FC = () => {
             </div>
           </div>
           <div id="main-middle-content" className="relative w-full" style={{height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - 40px - ${commandPanelHeight}px)` : 'calc(100% - 40px)'}}>
-           {showAddPanel && <AgentsRightView token={token} existingTabs={agentTabs.map(t => t.paneId)} onAddAgent={(paneId, title,url) => {
+           {showAddPanel && <div style={{position: 'absolute', inset: 0, zIndex: 2000}}><AgentsRightView token={token} existingTabs={agentTabs.map(t => t.paneId)} onAddAgent={(paneId, title,url) => {
               console.log('Adding agent:', paneId, 'URL:', url);
               if (!agentTabs.find(t => t.paneId === paneId)) {
                 setAgentTabs([...agentTabs, {paneId,title, url, closable: true}]);
               }
               setActiveAgentTab(paneId);
               setShowAddPanel(false);
-            }} />}
+            }} /></div>}
             
             {showHistoryOverlay && historyData && (
-              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: MODE === 'ttyd' && hasPermission('prompt') ? `calc(100% - ${commandPanelHeight}px)` : '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', flexDirection: 'column'}}>
+              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', flexDirection: 'column'}}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #474747', backgroundColor: '#1e1e1e'}}>
                   <span style={{fontSize: '14px', color: '#cccccc', fontWeight: 500}}>Command History</span>
                   <button onClick={() => setShowHistoryOverlay(false)} style={{color: '#858585', background: 'none', border: 'none', cursor: 'pointer'}}>
@@ -1190,6 +1223,42 @@ const App: React.FC = () => {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {showCommonPromptOverlay && (
+              <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', flexDirection: 'column'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #474747', backgroundColor: '#1e1e1e'}}>
+                  <span style={{fontSize: '14px', color: '#cccccc', fontWeight: 500}}>Common Prompt</span>
+                  <button onClick={() => setShowCommonPromptOverlay(false)} style={{color: '#858585', background: 'none', border: 'none', cursor: 'pointer'}}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <textarea 
+                  value={commonPromptText}
+                  onChange={(e) => setCommonPromptText(e.target.value)}
+                  style={{flex: 1, padding: '12px 16px', margin: '8px', backgroundColor: '#1e1e1e', color: '#cccccc', border: '1px solid #474747', borderRadius: '4px', fontFamily: 'monospace', fontSize: '13px', resize: 'none'}}
+                />
+                <div style={{padding: '12px 16px', borderTop: '1px solid #474747', backgroundColor: '#1e1e1e', display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const dataToSave = {common_prompt: commonPromptText};
+                        await api.updatePane(displayPaneId, dataToSave);
+                        setPaneDetail({...paneDetail, common_prompt: commonPromptText});
+                        setToast('Common prompt saved');
+                        setTimeout(() => setToast(null), 3000);
+                        setShowCommonPromptOverlay(false);
+                      } catch (err) {
+                        console.error('Save error:', err);
+                        setToast('Failed to save');
+                        setTimeout(() => setToast(null), 3000);
+                      }
+                    }}
+                    style={{padding: '6px 12px', backgroundColor: '#0e639c', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px'}}
+                  >
+                    Save
+                  </button>
                 </div>
               </div>
             )}
@@ -1350,9 +1419,13 @@ const App: React.FC = () => {
                 canSend={agentStatus === 'idle' || agentStatus === 'wait_startup'}
                 mode={MODE}
                 onShowHistory={(history, onSelect) => {
-                  setHistoryData({history, onSelect});
-                  setShowHistoryOverlay(true);
-                  setShowCorrectionResult(false);
+                  if (showHistoryOverlay) {
+                    setShowHistoryOverlay(false);
+                  } else {
+                    setHistoryData({history, onSelect});
+                    setShowHistoryOverlay(true);
+                    setShowCorrectionResult(false);
+                  }
                 }}
                 onShowCorrection={(result) => {
                   if (result === null) {

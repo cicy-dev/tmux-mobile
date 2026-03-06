@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import ApiClient from '../services/api';
 import { TokenManager } from '../services/tokenManager';
 import { PaneManager } from '../services/paneManager';
@@ -40,6 +40,11 @@ interface AppContextType {
   allPanes: Agent[];
   updatePane: (paneId: string, updates: Partial<Agent>) => void;
   
+  // Global Settings
+  globalVar: any;
+  loadGlobalVar: () => Promise<void>;
+  updateGlobalVar: (data: any) => Promise<void>;
+  
   // UI State
   loading: boolean;
   error: string | null;
@@ -55,6 +60,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [api, setApi] = useState<ApiClient | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [allPanes, setAllPanes] = useState<Agent[]>([]);
+  const [globalVar, setGlobalVar] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +71,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (cachedToken) {
       setToken(cachedToken);
-      setApi(new ApiClient(cachedToken));
+      const apiClient = new ApiClient(cachedToken);
+      setApi(apiClient);
     }
     
     if (cachedPane) {
@@ -75,7 +82,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLoading(false);
   }, []);
 
-  // Fetch all panes status with network monitoring
+  // Load global settings when api is ready
+  useEffect(() => {
+    if (api) {
+      loadGlobalVar();
+    }
+  }, [api]);
   useEffect(() => {
     if (!api) return;
     const fetchAllPanes = async () => {
@@ -180,6 +192,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const loadGlobalVar = useCallback(async () => {
+    if (!api) return;
+    try {
+      const res = await fetch('https://g-fast-api.cicy.de5.net/api/settings/global', {
+        headers: { 'Authorization': `Bearer ${api.token}` }
+      });
+      const data = await res.json();
+      setGlobalVar(data);
+    } catch (err: any) {
+      console.error('Failed to load global settings:', err);
+    }
+  }, [api]);
+
+  const updateGlobalVar = useCallback(async (data: any) => {
+    if (!api) return;
+    try {
+      await fetch('https://g-fast-api.cicy.de5.net/api/settings/global', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${api.token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(data)
+      });
+      setGlobalVar(data);
+    } catch (err: any) {
+      console.error('Failed to update global settings:', err);
+      throw err;
+    }
+  }, [api]);
+
   const value: AppContextType = {
     token,
     isAuthenticated: !!token,
@@ -197,6 +240,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     removeAgent,
     allPanes,
     updatePane,
+    globalVar,
+    loadGlobalVar,
+    updateGlobalVar,
     loading,
     error,
     setError,

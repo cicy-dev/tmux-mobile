@@ -77,6 +77,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
             <textarea value={pane.agent_duty || ''}
               onChange={e => onChange({ ...pane, agent_duty: e.target.value })}
               className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500 resize-none"
+              style={{paddingRight: '44px'}}
               rows={6} placeholder="Describe agent's role and responsibilities..." />
           </div>
         </>)}
@@ -87,14 +88,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
             <textarea value={pane.config || '{}'}
               onChange={e => onChange({ ...pane, config: e.target.value })}
               className="w-full bg-gray-800 border border-gray-600 text-white text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500 resize-none"
-              rows={12} placeholder='{"previewUrls": ["https://example.com"]}' />
+              rows={12} placeholder='{"proxy": {"enable": true}}' />
             <div className="text-xs text-gray-500 mt-2 space-y-1">
               <p className="font-medium text-gray-400">Example:</p>
               <pre className="bg-gray-800 border border-gray-700 rounded p-2 overflow-x-auto">{`{
-  "previewUrls": [
-    {"name": "Homepage", "url": "https://example.com"},
-    {"name": "Dashboard", "url": "https://dashboard.example.com"}
-  ],
   "proxy": {
     "enable": true,
     "url": "https://proxy.example.com"

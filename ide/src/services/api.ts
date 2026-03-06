@@ -86,6 +86,13 @@ class ApiClient {
     });
   }
 
+  async updatePane(paneId: string, data: any) {
+    return this.request(`/api/tmux/panes/${paneId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   async capturePane(paneId: string) {
     return this.request(`/api/tmux/capture?pane_id=${encodeURIComponent(paneId)}`);
   }

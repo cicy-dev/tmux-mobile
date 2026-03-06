@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EditPaneData } from './EditPaneDialog';
 import { Loader2 } from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
 
 interface SettingsViewProps {
   pane: EditPaneData;
@@ -77,6 +78,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
             <textarea value={pane.agent_duty || ''}
               onChange={e => onChange({ ...pane, agent_duty: e.target.value })}
               className="w-full bg-vsc-bg-secondary border border-vsc-border text-vsc-text text-sm rounded px-2.5 py-1.5 focus:outline-none focus:border-vsc-accent resize-none"
+              style={{paddingRight: '44px'}}
               rows={6} placeholder="Describe agent's role and responsibilities..." />
           </div>
         </>)}
@@ -87,14 +89,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pane, onChange, onSa
             <textarea value={pane.config || '{}'}
               onChange={e => onChange({ ...pane, config: e.target.value })}
               className="w-full bg-vsc-bg-secondary border border-vsc-border text-vsc-text text-sm font-mono rounded px-2.5 py-1.5 focus:outline-none focus:border-vsc-accent resize-none"
-              rows={12} placeholder='{"previewUrls": ["https://example.com"]}' />
+              rows={12} placeholder='{"proxy": {"enable": true}}' />
             <div className="text-xs text-vsc-text-muted mt-2 space-y-1">
               <p className="font-medium text-vsc-text-secondary">Example:</p>
               <pre className="bg-vsc-bg-secondary border border-vsc-border rounded p-2 overflow-x-auto">{`{
-  "previewUrls": [
-    {"name": "Homepage", "url": "https://example.com"},
-    {"name": "Dashboard", "url": "https://dashboard.example.com"}
-  ],
   "proxy": {
     "enable": true,
     "url": "https://proxy.example.com"
