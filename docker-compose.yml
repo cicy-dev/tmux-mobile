@@ -1,26 +1,4 @@
 services:
-  ide:
-    build:
-      context: ./ide
-      dockerfile: Dockerfile
-    volumes:
-      - ./ide/src:/app/src:ro
-      - ./ide/index.html:/app/index.html:ro
-      - ./ide/public/inject.js:/app/public/inject.js:ro
-      - ./ide/vite.config.ts:/app/vite.config.ts:ro
-      - ./ide/tailwind.config.js:/app/tailwind.config.js:ro
-      - ./ide/postcss.config.js:/app/postcss.config.js:ro
-      - ./ide/.env:/app/.env:ro
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - CHOKIDAR_USEPOLLING=true
-    ports:
-      - "6903:6902"
-    command: npm run dev
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
   frontend:
     build:
       context: ./frontend
